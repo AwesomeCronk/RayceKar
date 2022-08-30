@@ -6,10 +6,10 @@ layout(rgba32f, binding = 0) uniform image2D screen;
 
 // Aliasing to make quaternions easier to figure out
 #define quat vec4
-#define n w
-#define ni x
-#define nj y
-#define nk z
+#define n  x
+#define ni y
+#define nj z
+#define nk w
 
 
 float degToRad(float deg) {return deg * pi / 180;}
@@ -40,10 +40,10 @@ quat conjugateq(quat q)
 quat multiplyqq(quat q0, quat q1)
 {
     return quat(
-        q0.n  * q1.n  - q0.ni * q1.ni - q0.nj * q1.nj - q0.nk * q1.nk,
-        q0.n  * q1.ni + q0.ni * q1.n  + q0.nj * q1.nk - q0.nk * q1.nj,
-        q0.n  * q1.nj + q0.nj * q1.n  + q0.nk * q1.ni - q0.ni * q1.nk,
-        q0.n  * q1.nk + q0.nk * q1.n  + q0.ni * q1.nj - q0.nj * q1.ni
+        (q0.n  * q1.n ) - (q0.ni * q1.ni) - (q0.nj * q1.nj) - (q0.nk * q1.nk),
+        (q0.n  * q1.ni) + (q0.ni * q1.n ) + (q0.nj * q1.nk) - (q0.nk * q1.nj),
+        (q0.n  * q1.nj) + (q0.nj * q1.n ) + (q0.nk * q1.ni) - (q0.ni * q1.nk),
+        (q0.n  * q1.nk) + (q0.nk * q1.n ) + (q0.ni * q1.nj) - (q0.nj * q1.ni)
     );
 }
 
@@ -73,7 +73,8 @@ float sdfBox(vec3 rayPos, vec3 boxPos, quat boxRot, vec3 boxDim)
     vec3 diff = abs(rayPosRel) - (boxDim * 0.5);
     // If a component of diff is <= 0, then rayPosRel is above the corresponding surface and not out
     // at a corner, so we cut that bit out to make the length add up
-    return length(vec3(max(diff.x, 0), max(diff.y, 0), max(diff.z, 0)));
+    if (all(lessThan(diff, vec3(0, 0, 0)))) return max(max(diff.x, diff.y), diff.z);
+    else return length(vec3(max(diff.x, 0), max(diff.y, 0), max(diff.z, 0)));
 }
 
 float sdfInfPlane(vec3 rayPos, vec3 planePos)
@@ -83,14 +84,9 @@ float sdfInfPlane(vec3 rayPos, vec3 planePos)
 
 float sdfScene(vec3 rayPos)
 {
-    // Example scene
-    // float dstSphere = sdfSphere(rayPos);
-    // float dstBox = sdfBox(rayPos, vec3(1, 0, -0.5), vec3(1, 1, 1));
-    // float dstBox2 = sdfBox(rayPos, vec3(2, 0, 2), vec3(1, 1, 1));
-    // float dstPlane = sdfInfPlane(rayPos, vec3(0, 0, -1));
-    // return min(dstSphere, min(dstBox, min(dstBox2, dstPlane)));
+    // return sdfSphere(rayPos);
 
-    return sdfBox(rayPos, vec3(2, 0, 2), axisAngleToQuat(vec4(0, 1, 0, degToRad(22.5))), vec3(1, 1, 1));
+    return sdfBox(rayPos, vec3(0, 0, 0), axisAngleToQuat(vec4(normalize(vec3(1, 1, 0)), degToRad(0))), vec3(1, 1, 1));
 }
 
 
@@ -98,9 +94,11 @@ void main()
 {
     ivec2 resolution = imageSize(screen);
     ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);  // Location of the pixel
+    vec3 cameraPos = vec3(0, -5, 3);
+    quat cameraRot = normalize(axisAngleToQuat(vec4(1, 0, 0, degToRad(-20))));
     vec4 color = vec4(0.2, 0.2, 0.7, 1);          // Background color
 
-    vec3 focalPoint = vec3(0, -5, 0); // Focal point of the camera
+    vec3 focalPoint = cameraPos; // Focal point of the camera
     float focalLength = 0.1;                // Distance from focal point to lens
     float fov = degToRad(70);             // Field of view (horizontal)
 
@@ -119,6 +117,7 @@ void main()
             ((0.5 + float(pixel.y)) * pixelSize) - (0.5 * sensorSize.y)
         )
     );
+    rayDir = multiplyqv(cameraRot, rayDir);
 
 
     float dstScene;
@@ -147,7 +146,7 @@ void main()
     }
 
     color = vec4(pow(dstTotal / dstMax, 2), pow(dstTotal / dstMax, 2), pow(dstTotal / dstMax, 2), 1);
-
+    // color = vec4(rayDir.z, rayDir.z, rayDir.z, 1);
     // Final drawing of pixel
     imageStore(screen, pixel, color);
 }
