@@ -1,6 +1,8 @@
-import logging, sys
+import logging, sys, time
 from OpenGL import GL as gl
 import glfw
+import env
+from coord import *
 
 
 ### Logging setup ###
@@ -30,26 +32,21 @@ def setupLogging():
 
 ### Global values ###
 # Constants
-viewportSize = (600, 600)
-needGLVersion = (4, 5)
+viewportSize = (1000, 1000)
+needGLVersion = (4, 4)
 
 # Variables
-renderShaderSource = """\
-#version 450 core
-layout(local_size_x = 1, local_size_y = 1) in;
-layout(rgba32f, binding = 0) uniform image2D screen;
+scene = None
 
-void main()
-{
-    vec4 pixel = vec4(1.0, 0.0, 0.0, 1.0);
-    ivec2 pixel_coords = ivec2(gl_GlobalInvocationID.xy);
-
-    imageStore(screen, pixel_coords, pixel);
-}
-"""
+renderShaderSource = ""
 renderShader = None
 renderProgram = None
+
 framebuffer = None
+
+typeStorageBuffer = None
+intStorageBuffer = None
+floatStorageBuffer = None
 
 
 ### GLFW event flags / callbacks ###
@@ -64,19 +61,16 @@ framebuffer = None
 
 ### GL functions ###
 def initializeGL():
-    global renderShaderSource
-    global renderShader
-    global renderProgram
+    global renderShaderSource, renderShader, renderProgram
     global framebuffer
+    global typeStorageBuffer, intStorageBuffer, floatStorageBuffer    
     glLogger.info('Using OpenGL version {}'.format(gl.glGetString(gl.GL_VERSION).decode()))
 
     gl.glViewport(0, 0, *viewportSize)
 
     # Render shader source
-    try:
-        with open('render.glsl', 'r') as sourceFile:
-            renderShaderSource = sourceFile.read()
-    except FileNotFoundError: pass  # If the file doesn't exist, don't use it
+    with open('render.glsl', 'r') as sourceFile:
+        renderShaderSource = sourceFile.read()
 
     # Render shader
     renderShader = gl.glCreateShader(gl.GL_COMPUTE_SHADER)
@@ -116,6 +110,20 @@ def initializeGL():
     gl.glBindFramebuffer(gl.GL_READ_FRAMEBUFFER, framebuffer)
     gl.glBindFramebuffer(gl.GL_DRAW_FRAMEBUFFER, 0)
 
+    # Shader storage buffers for scene objects
+    typeStorageBuffer = gl.glGenBuffers(1)
+    gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, typeStorageBuffer)
+    gl.glBindBufferBase(gl.GL_SHADER_STORAGE_BUFFER, 1, typeStorageBuffer)
+
+    intStorageBuffer = gl.glGenBuffers(1)
+    gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, intStorageBuffer)
+    gl.glBindBufferBase(gl.GL_SHADER_STORAGE_BUFFER, 2, intStorageBuffer)
+
+    floatStorageBuffer = gl.glGenBuffers(1)
+    gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, floatStorageBuffer)
+    gl.glBindBufferBase(gl.GL_SHADER_STORAGE_BUFFER, 3, floatStorageBuffer)
+
+
 def paintGL():
     gl.glClear(gl.GL_COLOR_BUFFER_BIT)
 
@@ -134,6 +142,21 @@ def paintGL():
     )
     status = gl.glGetError()
     if status != gl.GL_NO_ERROR: glLogger.error('code {} after blitting framebuffers'.format(status)); sys.exit(1)
+
+
+def updateSceneGL():
+    # Update scene data
+    typeData, intData, floatData = scene.compileBufferData()
+    gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, typeStorageBuffer)
+    gl.glBufferData(gl.GL_SHADER_STORAGE_BUFFER, len(typeData) * 4, typeData, gl.GL_DYNAMIC_DRAW)
+
+    gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, intStorageBuffer)
+    gl.glBufferData(gl.GL_SHADER_STORAGE_BUFFER, len(intData) * 4, intData, gl.GL_DYNAMIC_DRAW)
+
+    gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, floatStorageBuffer)
+    gl.glBufferData(gl.GL_SHADER_STORAGE_BUFFER, len(floatData) * 4, floatData, gl.GL_DYNAMIC_DRAW)
+
+    gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, 0)
 
 
 ### Main section ###
@@ -158,10 +181,20 @@ if __name__ == '__main__':
         # Set up GLFW callbacks
         # glfw.set_window_size_callback(window, windowResizeCallback)
 
+        # Scene setup
+        scene = env.scene()
+        camera = env.camera(vec3(0, -5, 2), quat.fromAxisAngle(vec4(1, 0, 0, degToRad(-10))), degToRad(70))
+        sphere = env.sphere(vec3(0, 0, 0), 0.5)
+        cameraID = scene.addObject(camera)
+        sphereID = scene.addObject(sphere)
+        # sceneBufferData = scene.compileBufferData()
 
         # Main loop
+        frameTimes = []
+        endTime = time.perf_counter_ns()
         while not glfw.window_should_close(window):
-            
+            startTime = endTime
+
             # Handle GLFW events
             if glfw.get_key(window, glfw.KEY_ESCAPE) == glfw.PRESS:
                 glfw.set_window_should_close(window, True)
@@ -170,9 +203,18 @@ if __name__ == '__main__':
             #     resizeGL(*glfw.get_framebuffer_size(window))
             #     glfwWindowResize = False
 
+            updateSceneGL()
             paintGL()
             glfw.swap_buffers(window)
             glfw.poll_events()
+
+            # FPS counting
+            endTime = time.perf_counter_ns()
+            frameTimes.append(endTime - startTime)
+            if len(frameTimes) == 100:
+                print('Average FPS: {}'.format(round(1 / (sum(frameTimes) / len(frameTimes) / 1000000000), 6)))
+                frameTimes = []
+                sphere.move(vec3(0, 0, 1) - sphere.pos)
         
         logger.info('Main loop broke')
 

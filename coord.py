@@ -11,6 +11,11 @@ class _vec():
         if getattr(self, '_size', None) is None: raise Exception('should not instantiate _vec, but should use vec2, vec3, or vec4')
         if len(values) != self._size: raise ValueError('need {} values, {} given'.format(self._size, len(values)))
         else: self.values = values
+        
+        self.x = self.values[0]
+        self.y = self.values[1]
+        if self._size >= 3: self.z = self.values[2]
+        if self._size >= 4: self.w = self.values[3]
 
     # Bits to make Python interactions work
     def __repr__(self):
@@ -73,12 +78,13 @@ def vecN(*values):
 
 ### Quaternions ###
 # All quaternion code adapted from https://stackoverflow.com/a/4870905/12170254
-class quaternion():
+class quat():
     def __init__(self, n, ni, nj, nk):
         self.n = n
         self.ni = ni
         self.nj = nj
         self.nk = nk
+        self.components = [n, ni, nj, nk]
 
     def __repr__(self):
         return '({} {} {}i {} {}j {} {}k'.format(
@@ -90,35 +96,38 @@ class quaternion():
 
     __str__ = __repr__
 
-    def fromAxisAngle(axis, angle):
-        return quaternion(
-            cos(angle / 2),
-            axis[0] * sin(angle / 2),
-            axis[1] * sin(angle / 2),
-            axis[2] * sin(angle / 2)
+    def __getitem__(self, index):
+        return self.components[index]
+
+    def fromAxisAngle(axisAngle: vec4):
+        return quat(
+            cos(axisAngle.w / 2),
+            axisAngle.x * sin(axisAngle.w / 2),
+            axisAngle.y * sin(axisAngle.w / 2),
+            axisAngle.z * sin(axisAngle.w / 2)
         )
 
     def toAxisAngle(self):
-        return vec3(self.ni, self.nj, self.nk), acos(self.n) * 2
+        return vec4(self.ni, self.nj, self.nk, acos(self.n) * 2)
 
 
     # Multiplication of quaternions and vectors
-    def _mulQuat(self, quat):
-        q0 = self; q1 = quat
-        return quaternion(
+    def _mulQuat(self, other):
+        q0 = self; q1 = other
+        return quat(
             q0.n  * q1.n  - q0.ni * q1.ni - q0.nj * q1.nj - q0.nk * q1.nk,
             q0.n  * q1.ni + q0.ni * q1.n  + q0.nj * q1.nk - q0.nk * q1.nj,
             q0.n  * q1.nj + q0.nj * q1.n  + q0.nk * q1.ni - q0.ni * q1.nk,
             q0.n  * q1.nk + q0.nk * q1.n  + q0.ni * q1.nj - q0.nj * q1.ni
         )
 
-    def _mulVec(self, vec):
-        vecQuat = quaternion(0, *vec)
+    def _mulVec(self, other: vec3):
+        vecQuat = quat(0, *other)
         resultQuat = (self * vecQuat) * self.conjugate()
         return vec3(resultQuat.ni, resultQuat.nj, resultQuat.nk)
 
     def __mul__(self, other):
-        if isinstance(other, quaternion): return self._mulQuat(other)
+        if isinstance(other, quat): return self._mulQuat(other)
         elif isinstance(other, vec3): return self._mulVec(other)
 
 
@@ -128,10 +137,10 @@ class quaternion():
 
     def normalize(self):
         mag = length(self)
-        return quaternion(self.n / mag, self.ni / mag, self.nj / mag, self.nk / mag)
+        return quat(self.n / mag, self.ni / mag, self.nj / mag, self.nk / mag)
 
     def conjugate(self):
-        return quaternion(self.n, -self.ni, -self.nj, -self.nk)
+        return quat(self.n, -self.ni, -self.nj, -self.nk)
 
 
 ### Operators ###

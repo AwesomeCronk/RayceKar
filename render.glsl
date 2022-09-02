@@ -1,6 +1,10 @@
-#version 450 core
+#version 440 core
+// Compute shader `render.glsl`
 layout(local_size_x = 1, local_size_y = 1) in;
 layout(rgba32f, binding = 0) uniform image2D screen;
+layout(std430, binding = 1) buffer typeStorageBuffer {int shapeTypes[];};
+layout(std430, binding = 2) buffer intStorageBuffer {int shapeInts[];};
+layout(std430, binding = 3) buffer floatStorageBuffer {float shapeFloats[];};
 
 #define pi 3.1415926535897932384626
 
@@ -27,15 +31,9 @@ quat axisAngleToQuat(vec4 axisAngle)
     );
 }
 
-vec4 quatToAxisAngle(quat q)
-{
-    return vec4(q.ni, q.nj, q.nk, acos(q.n) * 2);
-}
+vec4 quatToAxisAngle(quat q) {return vec4(q.ni, q.nj, q.nk, acos(q.n) * 2);}
 
-quat conjugateq(quat q)
-{
-    return quat(q.n, -q.ni, -q.nj, -q.nk);
-}
+quat conjugateq(quat q) {return quat(q.n, -q.ni, -q.nj, -q.nk);}
 
 quat multiplyqq(quat q0, quat q1)
 {
@@ -55,12 +53,7 @@ vec3 multiplyqv(quat q, vec3 v)
 }
 
 
-float sdfSphere(vec3 rayPos)
-{
-    vec3 spherePos = vec3(0, 0, 0);
-    float sphereRad = 1;
-    return length(spherePos - rayPos) - sphereRad;
-}
+float sdfSphere(vec3 rayPos, vec3 spherePos, float sphereRad) {return length(spherePos - rayPos) - sphereRad;}
 
 float sdfBox(vec3 rayPos, vec3 boxPos, quat boxRot, vec3 boxDim)
 {
@@ -85,67 +78,89 @@ float sdfInfPlane(vec3 rayPos, vec3 planePos)
 float sdfScene(vec3 rayPos)
 {
     // return sdfSphere(rayPos);
+    // return sdfBox(rayPos, vec3(0, 0, 0), axisAngleToQuat(vec4(normalize(vec3(1, 1, 0)), degToRad(0))), vec3(1, 1, 1));
 
-    return sdfBox(rayPos, vec3(0, 0, 0), axisAngleToQuat(vec4(normalize(vec3(1, 1, 0)), degToRad(0))), vec3(1, 1, 1));
+    // Walk the buffers and render conditionally
+    int intPtr = 0;
+    int floatPtr = 8;
+    float dstScene = 1.0 / 0.0;     // iNfInItY
+    
+    for (int id = 1; id < shapeTypes.length(); id++)
+    {
+        switch (shapeTypes[id])
+        {
+            // Sphere
+            case 1:
+            float dstSphere = sdfSphere(rayPos, vec3(shapeFloats[floatPtr], shapeFloats[floatPtr + 1], shapeFloats[floatPtr + 2]), shapeFloats[floatPtr + 3]);
+            floatPtr += 4;
+            dstScene = min(dstScene, dstSphere);
+            break;
+        }
+    }
+    return dstScene;
 }
 
 
 void main()
 {
     ivec2 resolution = imageSize(screen);
-    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);  // Location of the pixel
-    vec3 cameraPos = vec3(0, -5, 3);
-    quat cameraRot = normalize(axisAngleToQuat(vec4(1, 0, 0, degToRad(-20))));
-    vec4 color = vec4(0.2, 0.2, 0.7, 1);          // Background color
-
-    vec3 focalPoint = cameraPos; // Focal point of the camera
-    float focalLength = 0.1;                // Distance from focal point to lens
-    float fov = degToRad(70);             // Field of view (horizontal)
-
-    // pixelSize is calculated from fov, focalLength, and resolution.x
-    // sensorSize is calculated from pixelSize and resolution
-    float pixelSize = (2 * tan(fov * 0.5) * focalLength) / float(resolution.x);   // Size of a pixel in the environment
-    vec2 sensorSize = pixelSize * vec2(resolution);   // Size of the sensor in the environment
-
-    // rayPos is calculated to be at the center of each pixel
-    vec3 rayPos = focalPoint;
-    // rayDir is calculated as a position offset, *not* a quaternion
-    vec3 rayDir = normalize(
-        vec3(
-            ((0.5 + float(pixel.x)) * pixelSize) - (0.5 * sensorSize.x),
-            focalLength,
-            ((0.5 + float(pixel.y)) * pixelSize) - (0.5 * sensorSize.y)
-        )
-    );
-    rayDir = multiplyqv(cameraRot, rayDir);
-
-
-    float dstScene;
-    float dstTotal = 0;
-    float dstMax = 7;
-    int maxSteps = 200;
-    float thres = 0.01;
-    for (int i=0; i < maxSteps; i++)
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);          // Location of the pixel
+    vec4 color = vec4(0.2, 0.2, 0.7, 1);                    // Kind of a sky blue - steps limit exceeded
+    if (shapeTypes[0] != 0) color = vec4(0.4, 0, 0, 1);     // Dark red - camera not defined
+    else
     {
-        dstScene = sdfScene(rayPos);
-        dstTotal += dstScene;
-        rayPos += rayDir * dstScene;
+        vec3 cameraPos = vec3(shapeFloats[0], shapeFloats[1], shapeFloats[2]);
+        quat cameraRot = quat(shapeFloats[4], shapeFloats[5], shapeFloats[6], shapeFloats[7]);
+
+        vec3 focalPoint = cameraPos;    // Focal point of the camera
+        float focalLength = 0.1;        // Distance from focal point to lens
+        float fov = shapeFloats[3];    // Field of view (horizontal)
+
+        // pixelSize is calculated from fov, focalLength, and resolution.x
+        // sensorSize is calculated from pixelSize and resolution
+        float pixelSize = (2 * tan(fov * 0.5) * focalLength) / float(resolution.x);   // Size of a pixel in the environment
+        vec2 sensorSize = pixelSize * vec2(resolution);   // Size of the sensor in the environment
+
+        // rayPos is calculated to be at the center of each pixel
+        vec3 rayPos = focalPoint;
+        // rayDir is calculated as a position offset, *not* a quaternion
+        vec3 rayDir = normalize(
+            vec3(
+                ((0.5 + float(pixel.x)) * pixelSize) - (0.5 * sensorSize.x),
+                focalLength,
+                ((0.5 + float(pixel.y)) * pixelSize) - (0.5 * sensorSize.y)
+            )
+        );
+        rayDir = multiplyqv(cameraRot, rayDir);     // Rotate the ray by cameraRot
 
 
-        if (dstScene <= thres)
+        float dstScene;
+        float dstTotal = 0;
+        float dstMax = 7;
+        int maxSteps = 200;
+        float thres = 0.01;
+        for (int i=0; i < maxSteps; i++)
         {
-            color = vec4(0, 0.8, 0, 1);
-            break;
-        }
+            dstScene = sdfScene(rayPos);
+            dstTotal += dstScene;
+            rayPos += rayDir * dstScene;
 
-        if (dstTotal >= dstMax)
-        {
-            color = vec4(0.5, 0, 0, 1);
-            break;
+
+            if (dstScene <= thres)
+            {
+                color = vec4(0, 0.8, 0, 1);     // Green - shape contact
+                break;
+            }
+
+            if (dstTotal >= dstMax)
+            {
+                color = vec4(0.5, 0, 0.5, 1);   // This purple color - distance limit exceeded
+                break;
+            }
         }
     }
 
-    color = vec4(pow(dstTotal / dstMax, 2), pow(dstTotal / dstMax, 2), pow(dstTotal / dstMax, 2), 1);
+    // color = vec4(pow(dstTotal / dstMax, 2), pow(dstTotal / dstMax, 2), pow(dstTotal / dstMax, 2), 1);
     // color = vec4(rayDir.z, rayDir.z, rayDir.z, 1);
     // Final drawing of pixel
     imageStore(screen, pixel, color);
