@@ -2,6 +2,7 @@ import struct
 
 from coord import *
 
+
 class scene():
     def __init__(self):
         self.objects = []
@@ -20,8 +21,7 @@ class scene():
         intData = b''
         floatData = b''
 
-        for o, object in enumerate(self.objects):
-            # print('Compiling scene data for object {} ({})'.format(o, object))
+        for object in self.objects:
             typeData += struct.pack('i', objectTypes.index(type(object)))
             objectIntData, objectFloatData = object.compileBufferData()
             intData += objectIntData
@@ -29,13 +29,10 @@ class scene():
 
         return typeData, intData, floatData
 
+
 # Empty base class to make it easy to ensure only objects are in the scene
 class object():
     pass
-
-
-# Note for compileBufferData definitions:
-# Try to make the vectors line up on increments of 4. It's just easier later.
 
 class camera(object):
     def __init__(self, pos: vec3, rot: quat, fov: float):
@@ -56,8 +53,7 @@ class camera(object):
         intData = b''
         floatData = struct.pack(
             'ffffffff',
-            *self.pos,
-            self.fov,
+            *self.pos, self.fov,
             *self.rot
         )
         return intData, floatData
@@ -82,8 +78,34 @@ class sphere(object):
         )
         return intData, floatData
 
+class box(object):
+    def __init__(self, pos: vec3, rot: quat, dim: vec3):
+        self.pos = pos
+        self.rot = rot
+        self.dim = dim
+
+    def move(self, newPos: vec3):
+        self.pos = newPos
+
+    def rotate(self, newRot):
+        self.rot = newRot
+
+    def resize(self, newDim):
+        self.dim = newDim
+
+    def compileBufferData(self):
+        intData = b''
+        floatData = struct.pack(
+            'ffffffffffff',
+            *self.pos, 0.0,
+            *self.rot,
+            *self.dim, 0.0
+        )
+        return intData, floatData
+
 
 objectTypes = [
     camera,
-    sphere
+    sphere,
+    box
 ]

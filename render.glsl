@@ -1,6 +1,7 @@
 #version 440 core
 // Compute shader `render.glsl`
-layout(local_size_x = 1, local_size_y = 1) in;
+layout(local_size_x = 8, local_size_y = 8) in;
+// layout(local_size_x = 1, local_size_y = 1) in;
 layout(rgba32f, binding = 0) uniform image2D screen;
 layout(std430, binding = 1) buffer typeStorageBuffer {int shapeTypes[];};
 layout(std430, binding = 2) buffer intStorageBuffer {int shapeInts[];};
@@ -83,7 +84,8 @@ float sdfScene(vec3 rayPos)
     // Walk the buffers and render conditionally
     int intPtr = 0;
     int floatPtr = 8;
-    float dstScene = 1.0 / 0.0;     // iNfInItY
+    // float dstScene = 1.0 / 0.0;     // iNfInItY
+    float dstScene = 100000000;
     
     for (int id = 1; id < shapeTypes.length(); id++)
     {
@@ -91,9 +93,42 @@ float sdfScene(vec3 rayPos)
         {
             // Sphere
             case 1:
-            float dstSphere = sdfSphere(rayPos, vec3(shapeFloats[floatPtr], shapeFloats[floatPtr + 1], shapeFloats[floatPtr + 2]), shapeFloats[floatPtr + 3]);
+            float dstSphere = sdfSphere(
+                rayPos,
+                vec3(
+                    shapeFloats[floatPtr],
+                    shapeFloats[floatPtr + 1],
+                    shapeFloats[floatPtr + 2]
+                ),
+                shapeFloats[floatPtr + 3]
+            );
             floatPtr += 4;
             dstScene = min(dstScene, dstSphere);
+            break;
+
+            // Box
+            case 2:
+            float dstBox = sdfBox(
+                rayPos,
+                vec3(
+                    shapeFloats[floatPtr],
+                    shapeFloats[floatPtr + 1],
+                    shapeFloats[floatPtr + 2]
+                ),
+                quat(
+                    shapeFloats[floatPtr + 4],
+                    shapeFloats[floatPtr + 5],
+                    shapeFloats[floatPtr + 6],
+                    shapeFloats[floatPtr + 7]
+                ),
+                vec3(
+                    shapeFloats[floatPtr + 8],
+                    shapeFloats[floatPtr + 9],
+                    shapeFloats[floatPtr + 10]
+                )
+            );
+            floatPtr += 12;
+            dstScene = min(dstScene, dstBox);
             break;
         }
     }
@@ -158,10 +193,11 @@ void main()
                 break;
             }
         }
+
+        color = vec4(pow(dstTotal / dstMax, 2), pow(dstTotal / dstMax, 2), pow(dstTotal / dstMax, 2), 1);
+        // color = vec4(rayDir.z, rayDir.z, rayDir.z, 1);
     }
 
-    // color = vec4(pow(dstTotal / dstMax, 2), pow(dstTotal / dstMax, 2), pow(dstTotal / dstMax, 2), 1);
-    // color = vec4(rayDir.z, rayDir.z, rayDir.z, 1);
     // Final drawing of pixel
     imageStore(screen, pixel, color);
 }
