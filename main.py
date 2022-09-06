@@ -17,36 +17,36 @@ if __name__ == '__main__':
 
     ui.initialize()
 
-    with ui.createWindow('Window title') as window:
+    with ui.createWindow('Window title'):
         gl.initialize()
-
 
         # Scene setup
         scene = env.scene()
         camera = env.camera(vec3(0, -5, 0), quat.fromAxisAngle(vec4(1, 0, 0, degToRad(0))), degToRad(70))
         sphere0 = env.sphere(vec3(-3, 0, 0), 0.5)
-        sphere1 = env.sphere(vec3(1, 0, 0), 0.5)
+        sphere1 = env.sphere(vec3(-1, 0, 0), 0.5)
         sphere2 = env.sphere(vec3(1, 0, 0), 0.5)
         sphere3 = env.sphere(vec3(3, 0, 0), 0.5)
-        # box = env.box(vec3(0, 0, 0), quat.fromAxisAngle(vec4(0, 0, 1, 0)), vec3(1, 1, 1))
-        cameraID = scene.addObject(camera)
-        sphere0ID = scene.addObject(sphere0)
-        sphere1ID = scene.addObject(sphere1)
-        sphere2ID = scene.addObject(sphere2)
-        sphere3ID = scene.addObject(sphere3)
-        # boxID = scene.addObject(box)
-        # sceneBufferData = scene.compileBufferData()
+        scene.addObject(camera)
+        scene.addObject(sphere0)
+        scene.addObject(sphere1)
+        scene.addObject(sphere2)
+        scene.addObject(sphere3)
+
+        # UI setup
+        mainWidget = ui.widget(vec2(50, 20), vec2(40, 40), vec3(1, 0.388, 0.035))
 
         def closeWindow(action):
-            logger.info('Window close event triggered (action: {})'.format(action))
-            ui.close(window)
+            # logger.info('Window close event triggered (action: {})'.format(action))
+            ui.close()
 
-        ui.setKeyEvent(window, ui.keys.ESCAPE, closeWindow)
+        ui.setKeyEvent(ui.keys.ESCAPE, closeWindow)
 
         # Main loop
         frame = -1
         frameTimes = []
         endTime = time.perf_counter()
+
         while not ui.flags.shouldClose:
             frame += 1
             startTime = endTime
@@ -60,19 +60,19 @@ if __name__ == '__main__':
             sphere2.move(vec3(1, 0, 2 * sin(degToRad(frame + 180))))
             sphere3.move(vec3(3, 0, 2 * sin(degToRad(frame + 270))))
 
-            gl.updateScene(scene)
-            gl.paint()
-            ui.update(window)
+            gl.compile(scene)
+            gl.paintScene()
+            gl.compile(mainWidget)
+            gl.paintUI()
+            gl.blitBuffers()
+            ui.update()
 
             # FPS limiting
             time.sleep(max(0, (1 / frameLimit) - (time.perf_counter() - startTime)))
+            endTime = time.perf_counter()
 
             # FPS counting
-            endTime = time.perf_counter()
-            frameTimes.append(endTime - startTime)
-            if len(frameTimes) == 100:
-                print('Average FPS: {}'.format(round(1 / (sum(frameTimes) / len(frameTimes)), 6)))
-                frameTimes = []
-        
-        logger.info('Main loop broke')
-
+            # frameTimes.append(endTime - startTime)
+            # if len(frameTimes) == 100:
+            #     print('Average FPS: {}'.format(round(1 / (sum(frameTimes) / len(frameTimes)), 6)))
+            #     frameTimes = []

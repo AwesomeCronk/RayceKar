@@ -1,62 +1,30 @@
-import contextlib, logging, glfw, sys
+import contextlib, logging, glfw, sys, struct
 from dataclasses import dataclass
 
 import events
 from util import loggingHandler, needGLVersion, viewportSize
-
+from coord import *
 
 logger = logging.getLogger('rk.ui')
 logger.addHandler(loggingHandler)
 logger.setLevel(logging.DEBUG)
 
 @dataclass
-class flags():
+class _flags:
     initialized = False
     shouldClose = False
 
-flags = flags()
+flags = _flags()
+
+window = None
 
 
-### GLFW management ###
-def initialize():
-    logger.info('Initializing GLFW')
-    flags.initialized = glfw.init()
-    if not flags.initialized:
-        logger.error('Failed to initialize GLFW')
-        sys.exit(1)
-
-@contextlib.contextmanager
-def createWindow(title):
-    try:
-        logger.info('Requiring OpenGL {}.{} core or higher'.format(*needGLVersion))
-        glfw.window_hint(glfw.CONTEXT_VERSION_MAJOR, needGLVersion[0])
-        glfw.window_hint(glfw.CONTEXT_VERSION_MINOR, needGLVersion[1])
-        glfw.window_hint(glfw.OPENGL_FORWARD_COMPAT, True)
-        glfw.window_hint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE)
-        glfw.window_hint(glfw.DOUBLEBUFFER, False)
-        glfw.window_hint(glfw.RESIZABLE, False)
-        
-        window = glfw.create_window(*viewportSize, title, None, None)
-        if not window: logger.error('Failed to open GLFW window'); sys.exit(1)
-        glfw.make_context_current(window)
-        
-        glfw.set_key_callback(window, keyCallback)
-        
-        yield window
-
-    finally:
-        logger.info('Terminating GLFW')
-        glfw.terminate()
-
-def close(window):
-    glfw.set_window_should_close(window, True)
-
-
-# Matches https://www.glfw.org/docs/3.3/group__keys.html
-class keys:
+### Keyboard input ###
+# Key codes match https://www.glfw.org/docs/3.3/group__keys.html
+class _keys:
     # keys.keyName -> keyCode: int
     def __getattribute__(self, name: str):
-        _names = {
+        _map = {
             'UNKNOWN':          -1,
             'SPACE':            32,
             'APOSTROPHE':       39,
@@ -181,50 +149,129 @@ class keys:
             'LAST':             348
         }
 
-        if name == '_names': return _names
-        else: return _names[name]
+        if name == '_map': return _map
+        else: return _map[name]
 
     # keys[keyCode: int] -> keyName: str
     # keys[keyName: str] -> keyCode: int
     def __getitem__(self, index):
-        if isinstance(index, int): return list(self._names.keys())[list(self._names.values()).index(index)]
-        elif isinstance(index, str): return self._names[index]
+        if isinstance(index, int): return list(self._map.keys())[list(self._map.values()).index(index)]
+        elif isinstance(index, str): return self._map[index]
 
-keys = keys()
+keys = _keys()
 
 
-def keyCallback(window, keyCode, scanCode, action, modBits):
+def _keyCallback(window, keyCode, scanCode, action, modBits):
     actionNames = {glfw.PRESS: 'press', glfw.REPEAT: 'repeat', glfw.RELEASE: 'release'}
-    logger.debug('keyCallback for "{}" ({})'.format(keys[keyCode], actionNames[action]))
+    # logger.debug('keyCallback for "{}" ({})'.format(keys[keyCode], actionNames[action]))
     eventName = 'key_{}'.format(keys[keyCode])
     event = events.getEventByName(eventName)
     if not event is None:
         event.fire(args=(action,))
 
-def setKeyEvent(window, keyCode, function):
+def setKeyEvent(keyCode, function):
     keyName = keys[keyCode]
     eventName = 'key_{}'.format(keys[keyCode])
     event = events.getEventByName(eventName)
     if function is None:
-        logger.debug('Removing event for key "{}"'.format(keyName))
+        # logger.debug('Removing event for key "{}"'.format(keyName))
         if not event is None: event.deactivate()
 
     else:
-        logger.debug('Setting up event for key "{}"'.format(keyName))
+        # logger.debug('Setting up event for key "{}"'.format(keyName))
         if event is None:
             event = events.event(eventName, function)
         event.activate()
 
-def keyPressed(window, keyCode): return glfw.get_key(window, keyCode) == glfw.PRESS
+def keyPressed(keyCode):
+    return glfw.get_key(window, keyCode) == glfw.PRESS
+
+
+### Mouse input ###
+class _mouse:
+    def __init__(self):
+        self.pos = vec2(0, 0)
+        self.mode = 'normal'
+
+    def setMode(self, mode: str):
+        if mode == 'normal':
+            glfw.set_input_mode(window, glfw.CURSOR, glfw.CURSOR_NORMAL)
+        elif mode == 'hidden':
+            glfw.set_input_mode(window, glfw.CURSOR, glfw.CURSOR_HIDDEN)
+        elif mode == 'disabled':
+            glfw.set_input_mode(window, glfw.CURSOR, glfw.CURSOR_DISABLED)
+        else:
+            raise ValueError('Invalid cursor mode "{}"'.format(mode))
+        self.mode = mode
+
+    def getMode(self): return self.mode
+
+mouse = _mouse()
 
 
 ### UI functions ###
+class widget:
+    typeID = 0
+    def __init__(self, pos: vec2, dim: vec2, color: vec3):
+        self.pos = pos
+        self.dim = dim
+        self.color = color
+
+    def compileBufferData(self):
+        typeData = struct.pack(
+            'i', self.typeID
+        )
+        intData = struct.pack(
+            'iiii',
+            *self.pos,
+            *self.dim
+        )
+        floatData = struct.pack(
+            'ffff',
+            *self.color,
+            0.0
+        )
+        return typeData, intData, floatData
 
 
-# update cuntains *everything* related to the UI that may need updated each frame
-def update(window):
+### GLFW management ###
+def initialize():
+    logger.info('Initializing GLFW')
+    flags.initialized = glfw.init()
+    if not flags.initialized:
+        logger.error('Failed to initialize GLFW')
+        sys.exit(1)
+
+@contextlib.contextmanager
+def createWindow(title):
+    global window
+    try:
+        logger.info('Requiring OpenGL {}.{} core or higher'.format(*needGLVersion))
+        glfw.window_hint(glfw.CONTEXT_VERSION_MAJOR, needGLVersion[0])
+        glfw.window_hint(glfw.CONTEXT_VERSION_MINOR, needGLVersion[1])
+        glfw.window_hint(glfw.OPENGL_FORWARD_COMPAT, True)
+        glfw.window_hint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE)
+        glfw.window_hint(glfw.DOUBLEBUFFER, False)
+        glfw.window_hint(glfw.RESIZABLE, False)
+        
+        window = glfw.create_window(*viewportSize, title, None, None)
+        if not window: logger.error('Failed to open GLFW window'); sys.exit(1)
+        glfw.make_context_current(window)
+        
+        glfw.set_key_callback(window, _keyCallback)
+        
+        yield
+
+    finally:
+        logger.info('Terminating GLFW')
+        glfw.terminate()
+
+def close():
+    glfw.set_window_should_close(window, True)
+
+def update():
     flags.shouldClose = glfw.window_should_close(window)
+    mouse.pos = vec2(*glfw.get_cursor_pos(window))
 
-    # GLFW housekeeping
     glfw.swap_buffers(window)
     glfw.poll_events()

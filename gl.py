@@ -9,18 +9,10 @@ logger.setLevel(logging.DEBUG)
 def _glDebugMessageCallback(source, messageType, messageID, severity, length, message, user):
     logger.error('Source: {}; Message type: {}; Message ID: {}; Severity: {}; Length: {}; Message: {}; User: {};'.format(source, messageType, messageID, severity, length, message, user))
 
-def initialize():
-    global renderShaderSource, renderShader, renderProgram
-    global framebuffer
-    global typeStorageBuffer, intStorageBuffer, floatStorageBuffer
-    logger.info('Using OpenGL {}'.format(gl.glGetString(gl.GL_VERSION).decode()))
-
-    gl.glDebugMessageCallback(gl.GLDEBUGPROC(_glDebugMessageCallback), None)
-
-    gl.glViewport(0, 0, *viewportSize)
-
+def _createRenderProgram(shaderSource):
+    logger.debug('Creating render program from "{}"'.format(shaderSource))
     # Render shader source
-    with open('render.glsl', 'r') as sourceFile:
+    with open(shaderSource, 'r') as sourceFile:
         renderShaderSource = sourceFile.read()
 
     # Render shader
@@ -42,6 +34,30 @@ def initialize():
     # Shader cleanup
     # glDeleteShader(renderShader)
     
+    return renderProgram
+
+def _createStorageBuffer(bindPoint):
+    logger.debug('Creating storage buffer at bind point {}'.format(bindPoint))
+    storageBuffer = gl.glGenBuffers(1)
+    gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, storageBuffer)
+    gl.glBindBufferBase(gl.GL_SHADER_STORAGE_BUFFER, bindPoint, storageBuffer)
+    return storageBuffer
+
+
+def initialize():
+    global sceneRenderProgram, uiRenderProgram
+    global framebuffer
+    global typeStorageBuffer, intStorageBuffer, floatStorageBuffer
+
+    logger.info('Initializing OpenGL')
+    logger.info('Using OpenGL {}'.format(gl.glGetString(gl.GL_VERSION).decode()))
+    gl.glDebugMessageCallback(gl.GLDEBUGPROC(_glDebugMessageCallback), None)
+
+    gl.glViewport(0, 0, *viewportSize)
+
+    sceneRenderProgram = _createRenderProgram('renderScene.glsl')
+    uiRenderProgram = _createRenderProgram('renderUI.glsl')
+
     # Texture to render to
     screenTex = gl.glGenTextures(1)
     gl.glActiveTexture(gl.GL_TEXTURE0)
@@ -57,35 +73,51 @@ def initialize():
     framebuffer = gl.glGenFramebuffers(1)
     gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, framebuffer)
     gl.glFramebufferTexture2D(gl.GL_FRAMEBUFFER, gl.GL_COLOR_ATTACHMENT0, gl.GL_TEXTURE_2D, screenTex, 0)
-
     gl.glBindFramebuffer(gl.GL_READ_FRAMEBUFFER, framebuffer)
     gl.glBindFramebuffer(gl.GL_DRAW_FRAMEBUFFER, 0)
 
     # Shader storage buffers for scene objects
-    typeStorageBuffer = gl.glGenBuffers(1)
-    gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, typeStorageBuffer)
-    gl.glBindBufferBase(gl.GL_SHADER_STORAGE_BUFFER, 1, typeStorageBuffer)
-
-    intStorageBuffer = gl.glGenBuffers(1)
-    gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, intStorageBuffer)
-    gl.glBindBufferBase(gl.GL_SHADER_STORAGE_BUFFER, 2, intStorageBuffer)
-
-    floatStorageBuffer = gl.glGenBuffers(1)
-    gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, floatStorageBuffer)
-    gl.glBindBufferBase(gl.GL_SHADER_STORAGE_BUFFER, 3, floatStorageBuffer)
+    typeStorageBuffer = _createStorageBuffer(1)
+    intStorageBuffer = _createStorageBuffer(2)
+    floatStorageBuffer = _createStorageBuffer(3)
 
 
-def paint():
+def compile(scene):
+    # Compile scene/ui data
+    typeData, intData, floatData = scene.compileBufferData()
+    if not typeData is None:
+        gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, typeStorageBuffer)
+        gl.glBufferData(gl.GL_SHADER_STORAGE_BUFFER, len(typeData), typeData, gl.GL_DYNAMIC_DRAW)
+
+    if not intData is None:
+        gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, intStorageBuffer)
+        gl.glBufferData(gl.GL_SHADER_STORAGE_BUFFER, len(intData), intData, gl.GL_DYNAMIC_DRAW)
+
+    if not floatData is None:
+        gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, floatStorageBuffer)
+        gl.glBufferData(gl.GL_SHADER_STORAGE_BUFFER, len(floatData), floatData, gl.GL_DYNAMIC_DRAW)
+
+    gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, 0)
+
+def paintScene():
     gl.glClear(gl.GL_COLOR_BUFFER_BIT)
 
     # Dispatch render program
-    gl.glUseProgram(renderProgram)
+    gl.glUseProgram(sceneRenderProgram)
     gl.glDispatchCompute(viewportSize[0] // 8, viewportSize[1] // 8, 1)
     # gl.glDispatchCompute(*viewportSize, 1)
     gl.glMemoryBarrier(gl.GL_ALL_BARRIER_BITS)
     status = gl.glGetError()
-    if status != gl.GL_NO_ERROR: logger.error('Code {} after dispatching renderProgram'.format(status)); sys.exit(1)
+    if status != gl.GL_NO_ERROR: logger.error('Code {} after dispatching sceneRenderProgram'.format(status)); sys.exit(1)
 
+def paintUI():
+    gl.glUseProgram(uiRenderProgram)
+    gl.glDispatchCompute(viewportSize[0] // 8, viewportSize[1] // 8, 1)
+    gl.glMemoryBarrier(gl.GL_ALL_BARRIER_BITS)
+    status = gl.glGetError()
+    if status != gl.GL_NO_ERROR: logger.error('Code {} after dispatching uiRenderProgram'.format(status)); sys.exit(1)
+
+def blitBuffers():
     # Copy data to default framebuffer's backbuffer
     gl.glBlitFramebuffer(
         0, 0, *viewportSize,
@@ -94,18 +126,3 @@ def paint():
     )
     status = gl.glGetError()
     if status != gl.GL_NO_ERROR: logger.error('Code {} after blitting framebuffers'.format(status)); sys.exit(1)
-
-
-def updateScene(scene):
-    # Update scene data
-    typeData, intData, floatData = scene.compileBufferData()
-    gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, typeStorageBuffer)
-    gl.glBufferData(gl.GL_SHADER_STORAGE_BUFFER, len(typeData), typeData, gl.GL_DYNAMIC_DRAW)
-
-    gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, intStorageBuffer)
-    gl.glBufferData(gl.GL_SHADER_STORAGE_BUFFER, len(intData), intData, gl.GL_DYNAMIC_DRAW)
-
-    gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, floatStorageBuffer)
-    gl.glBufferData(gl.GL_SHADER_STORAGE_BUFFER, len(floatData), floatData, gl.GL_DYNAMIC_DRAW)
-
-    gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, 0)
