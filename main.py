@@ -40,7 +40,7 @@ if __name__ == '__main__':
             # logger.info('Window close event triggered (action: {})'.format(action))
             ui.close()
 
-        ui.setKeyEvent(ui.keys.ESCAPE, closeWindow)
+        ui.keys.setEvent(ui.keys.ESCAPE, closeWindow)
 
         # Main loop
         frame = -1
@@ -54,11 +54,13 @@ if __name__ == '__main__':
             # if ui.keyPressed(window, ui.keys.ESCAPE):
             #     ui.close(window)
 
-            # box.move(vec3(0, 0, sin(degToRad(frame))))
             sphere0.move(vec3(-3, 0, 2 * sin(degToRad(frame))))
             sphere1.move(vec3(-1, 0, 2 * sin(degToRad(frame + 90))))
             sphere2.move(vec3(1, 0, 2 * sin(degToRad(frame + 180))))
             sphere3.move(vec3(3, 0, 2 * sin(degToRad(frame + 270))))
+
+            # print(ui.mouse.pos)
+            mainWidget.move(ui.mouse.pos)
 
             gl.compile(scene)
             gl.paintScene()
