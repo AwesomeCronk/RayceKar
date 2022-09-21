@@ -22,7 +22,7 @@ if __name__ == '__main__':
 
         # Scene setup
         scene = env.scene()
-        camera = env.camera(vec3(0, -5, 0), quat.fromAxisAngle(vec4(1, 0, 0, degToRad(0))), degToRad(70))
+        camera = env.camera(vec3(0, -5, 0), quat.fromAxisAngle(vec4(1, 0, 0, deg(0))), deg(70))
         sphere0 = env.sphere(vec3(-3, 0, 0), 0.5)
         sphere1 = env.sphere(vec3(-1, 0, 0), 0.5)
         sphere2 = env.sphere(vec3(1, 0, 0), 0.5)
@@ -40,7 +40,11 @@ if __name__ == '__main__':
             # logger.info('Window close event triggered (action: {})'.format(action))
             ui.close()
 
+        def moveBox(action):
+            mainWidget.move(ui.mouse.pos)
+
         ui.keys.setEvent(ui.keys.ESCAPE, closeWindow)
+        ui.mouse.setEvent(ui.mouse.LEFT, moveBox)
 
         # Main loop
         frame = -1
@@ -60,7 +64,7 @@ if __name__ == '__main__':
             sphere3.move(vec3(3, 0, 2 * sin(degToRad(frame + 270))))
 
             # print(ui.mouse.pos)
-            mainWidget.move(ui.mouse.pos)
+            # mainWidget.move(ui.mouse.pos)
 
             gl.compile(scene)
             gl.paintScene()

@@ -184,9 +184,26 @@ keys = _keys()
 
 ### Mouse input ###
 class _mouse:
-    def __init__(self):
-        self.pos = vec2(0, 0)
-        self.mode = 'normal'
+    _buttons = {
+        'LEFT': 0,
+        'RIGHT': 1,
+        'MODDLE': 2
+    }
+    pos = vec2(0, 0)
+    mode = 'normal'
+
+    def __getattr__(self, name: str):
+        return self._buttons[name]
+
+    def __getitem__(self, index):
+        if isinstance(index, int): return list(self._buttons.keys())[list(self._buttons.values()).index(index)]
+        elif isinstance(index, str): return self._buttons[index]
+
+    def _callback(self, window, button, action, modBits):
+        eventName = 'mouse_{}'.format(self[button])
+        event = events.getEventByName(eventName)
+        if not event is None:
+            event.fire(args=(action,))
 
     def setMode(self, mode: str):
         if mode == 'normal':
@@ -201,8 +218,16 @@ class _mouse:
 
     def getMode(self): return self.mode
 
-    # def setEvent(self, function):
-    #     eventName = 'mouse_{}'.format()
+    def setEvent(self, buttonCode, function):
+        eventName = 'mouse_{}'.format(self[buttonCode])
+        event = events.getEventByName(eventName)
+        if function is None:
+            if not event is None: event.deactivate()
+
+        else:
+            if event is None:
+                event = events.event(eventName, function)
+            event.activate()
 
 mouse = _mouse()
 
@@ -260,6 +285,7 @@ def createWindow(title):
         glfw.make_context_current(window)
         
         glfw.set_key_callback(window, keys._callback)
+        glfw.set_mouse_button_callback(window, mouse._callback)
         
         yield
 

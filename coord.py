@@ -1,8 +1,82 @@
 from math import sqrt, sin, cos, acos, pi
 
-def degToRad(deg): return deg * pi / 180
 
-def radToDeg(rad): return rad * 180 / pi
+### Angles ###
+class deg:
+    def __init__(self, value):
+        if isinstance(value, rad): self.value = value.value * 180 / pi
+        elif isinstance(value, deg): self.value = value.value
+        else: self.value = value
+
+    def __str__(self):
+        return '{} deg'.format(self.value)
+
+    __repr__ = __str__
+
+    def __add__(self, other):
+        return deg(self.value + deg(other).value)
+
+    def __sub__(self, other):
+        return deg(self.value - deg(other).value)
+
+    def __mul__(self, other):
+        if isinstance(other, deg): raise NotImplementedError()
+        elif isinstance(other, rad): raise NotImplementedError()
+        else:
+            return deg(self.value * other)
+
+    def __truediv__(self, other):
+        if isinstance(other, deg): return self.value / other.value
+        elif isinstance(other, rad): return self.value / deg(other).value
+        else: return deg(self.value / other)
+
+    def __floordiv__(self, other):
+        if isinstance(other, deg): return self.value // other.value
+        elif isinstance(other, rad): return self.value // deg(other).value
+        else: return deg(self.value // other)
+
+    def __mod__(self, other):
+        if isinstance(other, deg): return deg(self.value % other.value)
+        elif isinstance(other, rad): return deg(self.value % deg(other).value)
+        else: return deg(self.value % other)
+
+class rad:
+    def __init__(self, value):
+        if isinstance(value, deg): self.value = value.value * pi / 180
+        elif isinstance(value, rad): self.value = value.value
+        else: self.value = value
+
+    def __str__(self):
+        return '{} rad'.format(self.value)
+
+    __repr__ = __str__
+
+    def __add__(self, other):
+        return rad(self.value + rad(other).value)
+
+    def __sub__(self, other):
+        return rad(self.value - rad(other).value)
+
+    def __mul__(self, other):
+        if isinstance(other, deg): raise NotImplementedError()
+        elif isinstance(other, rad): raise NotImplementedError()
+        else:
+            return rad(self.value * other)
+
+    def __truediv__(self, other):
+        if isinstance(other, deg): return self.value / rad(other).value
+        elif isinstance(other, rad): return self.value / other.value
+        else: return rad(self.value / other)
+
+    def __floordiv__(self, other):
+        if isinstance(other, deg): return self.value // rad(other).value
+        elif isinstance(other, rad): return self.value // other.value
+        else: return rad(self.value // other)
+
+    def __mod__(self, other):
+        if isinstance(other, deg): return rad(self.value % rad(other).value)
+        elif isinstance(other, rad): return rad(self.value % other.value)
+        else: return rad(self.value % other)
 
 
 ### Vectors ###
@@ -101,10 +175,10 @@ class quat():
 
     def fromAxisAngle(axisAngle: vec4):
         return quat(
-            cos(axisAngle.w / 2),
-            axisAngle.x * sin(axisAngle.w / 2),
-            axisAngle.y * sin(axisAngle.w / 2),
-            axisAngle.z * sin(axisAngle.w / 2)
+            cos(rad(axisAngle.w) / 2),
+            axisAngle.x * sin(rad(axisAngle.w) / 2),
+            axisAngle.y * sin(rad(axisAngle.w) / 2),
+            axisAngle.z * sin(rad(axisAngle.w) / 2)
         )
 
     def toAxisAngle(self):
