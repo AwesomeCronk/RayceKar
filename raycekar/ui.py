@@ -1,9 +1,9 @@
 import contextlib, logging, glfw, sys, struct
 from dataclasses import dataclass
 
-import events
-from util import loggingHandler, needGLVersion, viewportSize
-from coord import *
+from raycekar import events
+from raycekar.util import loggingHandler, needGLVersion, viewportSize
+from raycekar.coord import *
 
 logger = logging.getLogger('rk.ui')
 logger.addHandler(loggingHandler)

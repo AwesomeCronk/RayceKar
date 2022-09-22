@@ -40,6 +40,12 @@ class deg:
         elif isinstance(other, rad): return deg(self.value % deg(other).value)
         else: return deg(self.value % other)
 
+    def __float__(self):
+        return float(self.value)
+
+    def __int__(self):
+        return int(self.value)
+
 class rad:
     def __init__(self, value):
         if isinstance(value, deg): self.value = value.value * pi / 180
@@ -77,6 +83,12 @@ class rad:
         if isinstance(other, deg): return rad(self.value % rad(other).value)
         elif isinstance(other, rad): return rad(self.value % other.value)
         else: return rad(self.value % other)
+
+    def __float__(self):
+        return float(self.value)
+
+    def __int__(self):
+        return int(self.value)
 
 
 ### Vectors ###

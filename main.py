@@ -1,9 +1,9 @@
 import logging, time
 from math import sin
 
-import env, gl, ui
-from coord import *
-from util import loggingHandler
+import raycekar as rk
+from raycekar.coord import *
+from raycekar.util import loggingHandler
 
 
 frameLimit = 120
@@ -15,18 +15,18 @@ if __name__ == '__main__':
     logger.setLevel(logging.DEBUG)
     logger.addHandler(loggingHandler)
 
-    ui.initialize()
+    rk.ui.initialize()
 
-    with ui.createWindow('Window title'):
-        gl.initialize()
+    with rk.ui.createWindow('Window title'):
+        rk.gl.initialize()
 
         # Scene setup
-        scene = env.scene()
-        camera = env.camera(vec3(0, -5, 0), quat.fromAxisAngle(vec4(1, 0, 0, deg(0))), deg(70))
-        sphere0 = env.sphere(vec3(-3, 0, 0), 0.5)
-        sphere1 = env.sphere(vec3(-1, 0, 0), 0.5)
-        sphere2 = env.sphere(vec3(1, 0, 0), 0.5)
-        sphere3 = env.sphere(vec3(3, 0, 0), 0.5)
+        scene = rk.env.scene()
+        camera = rk.env.camera(vec3(0, -5, 0), quat.fromAxisAngle(vec4(1, 0, 0, deg(0))), deg(70))
+        sphere0 = rk.env.sphere(vec3(-3, 0, 0), 0.5)
+        sphere1 = rk.env.sphere(vec3(-1, 0, 0), 0.5)
+        sphere2 = rk.env.sphere(vec3(1, 0, 0), 0.5)
+        sphere3 = rk.env.sphere(vec3(3, 0, 0), 0.5)
         scene.addObject(camera)
         scene.addObject(sphere0)
         scene.addObject(sphere1)
@@ -34,44 +34,44 @@ if __name__ == '__main__':
         scene.addObject(sphere3)
 
         # UI setup
-        mainWidget = ui.widget(vec2(50, 20), vec2(40, 40), vec3(1, 0.388, 0.035))
+        mainWidget = rk.ui.widget(vec2(50, 20), vec2(40, 40), vec3(1, 0.388, 0.035))
 
         def closeWindow(action):
             # logger.info('Window close event triggered (action: {})'.format(action))
-            ui.close()
+            rk.ui.close()
 
         def moveBox(action):
-            mainWidget.move(ui.mouse.pos)
+            mainWidget.move(rk.ui.mouse.pos)
 
-        ui.keys.setEvent(ui.keys.ESCAPE, closeWindow)
-        ui.mouse.setEvent(ui.mouse.LEFT, moveBox)
+        rk.ui.keys.setEvent(rk.ui.keys.ESCAPE, closeWindow)
+        rk.ui.mouse.setEvent(rk.ui.mouse.LEFT, moveBox)
 
         # Main loop
         frame = -1
         frameTimes = []
         endTime = time.perf_counter()
 
-        while not ui.flags.shouldClose:
+        while not rk.ui.flags.shouldClose:
             frame += 1
             startTime = endTime
 
-            # if ui.keyPressed(window, ui.keys.ESCAPE):
-            #     ui.close(window)
+            # if rk.ui.keyPressed(window, rk.ui.keys.ESCAPE):
+            #     rk.ui.close(window)
 
-            sphere0.move(vec3(-3, 0, 2 * sin(degToRad(frame))))
-            sphere1.move(vec3(-1, 0, 2 * sin(degToRad(frame + 90))))
-            sphere2.move(vec3(1, 0, 2 * sin(degToRad(frame + 180))))
-            sphere3.move(vec3(3, 0, 2 * sin(degToRad(frame + 270))))
+            sphere0.move(vec3(-3, 0, 2 * sin(rad(deg(frame)))))
+            sphere1.move(vec3(-1, 0, 2 * sin(rad(deg(frame + 90)))))
+            sphere2.move(vec3(1, 0, 2 * sin(rad(deg(frame + 180)))))
+            sphere3.move(vec3(3, 0, 2 * sin(rad(deg(frame + 270)))))
 
-            # print(ui.mouse.pos)
-            # mainWidget.move(ui.mouse.pos)
+            # print(rk.ui.mouse.pos)
+            # mainWidget.move(rk.ui.mouse.pos)
 
-            gl.compile(scene)
-            gl.paintScene()
-            gl.compile(mainWidget)
-            gl.paintUI()
-            gl.blitBuffers()
-            ui.update()
+            rk.gl.compile(scene)
+            rk.gl.paintScene()
+            rk.gl.compile(mainWidget)
+            rk.gl.paintUI()
+            rk.gl.blitBuffers()
+            rk.ui.update()
 
             # FPS limiting
             time.sleep(max(0, (1 / frameLimit) - (time.perf_counter() - startTime)))

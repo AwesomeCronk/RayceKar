@@ -1,6 +1,6 @@
 import logging
 
-from util import loggingHandler
+from raycekar.util import loggingHandler
 
 
 logger = logging.getLogger('rk.events')

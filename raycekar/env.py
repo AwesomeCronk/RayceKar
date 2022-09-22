@@ -1,6 +1,6 @@
 import struct
 
-from coord import *
+from raycekar.coord import *
 
 
 class scene():
@@ -53,7 +53,7 @@ class camera(object):
         intData = b''
         floatData = struct.pack(
             'ffffffff',
-            *self.pos, self.fov,
+            *self.pos, rad(self.fov),
             *self.rot
         )
         return intData, floatData

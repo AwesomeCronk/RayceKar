@@ -1,6 +1,6 @@
-import logging, sys
+import logging, sys, pathlib
 from OpenGL import GL as gl
-from util import loggingHandler, viewportSize
+from raycekar.util import loggingHandler, viewportSize
 
 logger = logging.getLogger('rk.gl')
 logger.addHandler(loggingHandler)
@@ -55,8 +55,8 @@ def initialize():
 
     gl.glViewport(0, 0, *viewportSize)
 
-    sceneRenderProgram = _createRenderProgram('renderScene.glsl')
-    uiRenderProgram = _createRenderProgram('renderUI.glsl')
+    sceneRenderProgram = _createRenderProgram(pathlib.Path(__file__).parent.joinpath('renderScene.glsl'))
+    uiRenderProgram = _createRenderProgram(pathlib.Path(__file__).parent.joinpath('renderUI.glsl'))
 
     # Texture to render to
     screenTex = gl.glGenTextures(1)
