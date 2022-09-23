@@ -17,8 +17,8 @@ if __name__ == '__main__':
 
     rk.ui.initialize()
 
-    with rk.ui.createWindow('Window title'):
-        rk.gl.initialize()
+    with rk.ui.createWindow('Window title', (800, 800)):
+        rk.gl.initialize((800, 800))
 
         # Scene setup
         scene = rk.env.scene()
@@ -34,17 +34,17 @@ if __name__ == '__main__':
         scene.addObject(sphere3)
 
         # UI setup
-        mainWidget = rk.ui.widget(vec2(50, 20), vec2(40, 40), vec3(1, 0.388, 0.035))
+        mainWidget = rk.ui.widget(vec2(50, 20), vec2(40, 40), vec4(1, 0.388, 0.035, 1))
 
         def closeWindow(action):
             # logger.info('Window close event triggered (action: {})'.format(action))
-            rk.ui.close()
+            rk.ui.closeWindow()
 
-        def moveBox(action):
-            mainWidget.move(rk.ui.mouse.pos)
+        # def moveBox(action):
+        #     mainWidget.move(rk.ui.mouse.pos)
 
         rk.ui.keys.setEvent(rk.ui.keys.ESCAPE, closeWindow)
-        rk.ui.mouse.setEvent(rk.ui.mouse.LEFT, moveBox)
+        # rk.ui.mouse.setEvent(rk.ui.mouse.LEFT, moveBox)
 
         # Main loop
         frame = -1
@@ -55,8 +55,14 @@ if __name__ == '__main__':
             frame += 1
             startTime = endTime
 
-            # if rk.ui.keyPressed(window, rk.ui.keys.ESCAPE):
-            #     rk.ui.close(window)
+            # if rk.ui.keys.pressed(rk.ui.keys.ESCAPE):
+            #    rk.ui.closeWindow()
+
+            if rk.ui.keys.pressed(rk.ui.keys.X):
+                mainWidget.move(rk.ui.mouse.pos)
+
+            if rk.ui.mouse.pressed(rk.ui.mouse.LEFT):
+                mainWidget.move(rk.ui.mouse.pos)
 
             sphere0.move(vec3(-3, 0, 2 * sin(rad(deg(frame)))))
             sphere1.move(vec3(-1, 0, 2 * sin(rad(deg(frame + 90)))))
@@ -71,7 +77,7 @@ if __name__ == '__main__':
             rk.gl.compile(mainWidget)
             rk.gl.paintUI()
             rk.gl.blitBuffers()
-            rk.ui.update()
+            rk.ui.updateWindow()
 
             # FPS limiting
             time.sleep(max(0, (1 / frameLimit) - (time.perf_counter() - startTime)))

@@ -7,6 +7,17 @@ layout(std430, binding = 1) buffer typeStorageBuffer {int widgetTypes[];};
 layout(std430, binding = 2) buffer intStorageBuffer {int widgetInts[];};
 layout(std430, binding = 3) buffer floatStorageBuffer {float widgetFloats[];};
 
+vec4 blend(vec4 a, vec4 b)
+{
+    return vec4(((a.xyz * a.w) + (b.xyz * b.w)), a.w + b.w);
+}
+
+vec4 clampColor(vec4 raw)
+{
+    if (raw.w > 1) return vec4(raw.xyz / raw.w, 1);
+    else return raw;
+}
+
 void main()
 {
     ivec2 resolution = imageSize(screen);
@@ -25,15 +36,21 @@ void main()
                 widgetFloats[floatPtr],
                 widgetFloats[floatPtr + 1],
                 widgetFloats[floatPtr + 2],
-                1.0
+                widgetFloats[floatPtr + 3]
             );
+            
         }
         intPtr += 4;
-
     }
 
+    color = clampColor(color);
     if (color.w == 1)
     {
         imageStore(screen, pixel, color);
+    }
+    else if (color.w > 0)
+    {
+        vec4 original = imageLoad(screen, pixel);
+        imageStore(screen, pixel, clampColor(blend(original, color)));
     }
 }

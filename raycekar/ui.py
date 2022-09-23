@@ -1,13 +1,13 @@
 import contextlib, logging, glfw, sys, struct
 from dataclasses import dataclass
 
-from raycekar import events
-from raycekar.util import loggingHandler, needGLVersion, viewportSize
+from raycekar import events, util
+from raycekar.util import loggingHandler
 from raycekar.coord import *
 
-logger = logging.getLogger('rk.ui')
-logger.addHandler(loggingHandler)
-logger.setLevel(logging.DEBUG)
+log = logging.getLogger('rk.ui')
+log.addHandler(loggingHandler)
+log.setLevel(logging.DEBUG)
 
 @dataclass
 class _flags:
@@ -16,6 +16,8 @@ class _flags:
 
 flags = _flags()
 
+viewportSize = (400, 400)
+needGLVersion = (4, 4)
 window = None
 
 
@@ -159,7 +161,7 @@ class _keys:
 
     def _callback(self, window, keyCode, scanCode, action, modBits):
         # actionNames = {glfw.PRESS: 'press', glfw.REPEAT: 'repeat', glfw.RELEASE: 'release'}
-        # logger.debug('keyCallback for "{}" ({})'.format(self[keyCode], actionNames[action]))
+        # log.debug('keyCallback for "{}" ({})'.format(self[keyCode], actionNames[action]))
         eventName = 'key_{}'.format(self[keyCode])
         event = events.getEventByName(eventName)
         if not event is None:
@@ -229,13 +231,16 @@ class _mouse:
                 event = events.event(eventName, function)
             event.activate()
 
+    def pressed(self, buttonCode):
+        return glfw.get_mouse_button(window, buttonCode) == glfw.PRESS
+
 mouse = _mouse()
 
 
 ### UI functions ###
 class widget:
     typeID = 0
-    def __init__(self, pos: vec2, dim: vec2, color: vec3):
+    def __init__(self, pos: vec2, dim: vec2, color: vec4):
         self.pos = pos
         self.dim = dim
         self.color = color
@@ -254,25 +259,25 @@ class widget:
         )
         floatData = struct.pack(
             'ffff',
-            *self.color,
-            0.0
+            *self.color
         )
         return typeData, intData, floatData
 
 
 ### GLFW management ###
 def initialize():
-    logger.info('Initializing GLFW')
+    log.info('Initializing GLFW')
     flags.initialized = glfw.init()
     if not flags.initialized:
-        logger.error('Failed to initialize GLFW')
+        log.error('Failed to initialize GLFW')
         sys.exit(1)
 
 @contextlib.contextmanager
-def createWindow(title):
-    global window
+def createWindow(title, size):
+    global window, viewportSize
     try:
-        logger.info('Requiring OpenGL {}.{} core or higher'.format(*needGLVersion))
+        viewportSize = size
+        log.info('Requiring OpenGL {}.{} core or higher'.format(*needGLVersion))
         glfw.window_hint(glfw.CONTEXT_VERSION_MAJOR, needGLVersion[0])
         glfw.window_hint(glfw.CONTEXT_VERSION_MINOR, needGLVersion[1])
         glfw.window_hint(glfw.OPENGL_FORWARD_COMPAT, True)
@@ -281,7 +286,7 @@ def createWindow(title):
         glfw.window_hint(glfw.RESIZABLE, False)
         
         window = glfw.create_window(*viewportSize, title, None, None)
-        if not window: logger.error('Failed to open GLFW window'); sys.exit(1)
+        if not window: log.error('Failed to open GLFW window'); sys.exit(1)
         glfw.make_context_current(window)
         
         glfw.set_key_callback(window, keys._callback)
@@ -290,13 +295,13 @@ def createWindow(title):
         yield
 
     finally:
-        logger.info('Terminating GLFW')
+        log.info('Terminating GLFW')
         glfw.terminate()
 
-def close():
+def closeWindow():
     glfw.set_window_should_close(window, True)
 
-def update():
+def updateWindow():
     flags.shouldClose = glfw.window_should_close(window)
     rawMousePos = glfw.get_cursor_pos(window)
     mouse.pos = vec2(int(rawMousePos[0]), viewportSize[1] - int(rawMousePos[1]))   # GLFW puts <0, 0> at upper left; OpenGl, mathematics, and basic sense put it at lower left

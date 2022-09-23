@@ -1,10 +1,12 @@
 import logging, sys, pathlib
 from OpenGL import GL as gl
-from raycekar.util import loggingHandler, viewportSize
+from raycekar import util
 
 logger = logging.getLogger('rk.gl')
-logger.addHandler(loggingHandler)
+logger.addHandler(util.loggingHandler)
 logger.setLevel(logging.DEBUG)
+
+viewportSize = (512, 512)
 
 def _glDebugMessageCallback(source, messageType, messageID, severity, length, message, user):
     logger.error('Source: {}; Message type: {}; Message ID: {}; Severity: {}; Length: {}; Message: {}; User: {};'.format(source, messageType, messageID, severity, length, message, user))
@@ -44,10 +46,12 @@ def _createStorageBuffer(bindPoint):
     return storageBuffer
 
 
-def initialize():
+def initialize(size):
     global sceneRenderProgram, uiRenderProgram
     global framebuffer
     global typeStorageBuffer, intStorageBuffer, floatStorageBuffer
+    global viewportSize
+    viewportSize = size
 
     logger.info('Initializing OpenGL')
     logger.info('Using OpenGL {}'.format(gl.glGetString(gl.GL_VERSION).decode()))

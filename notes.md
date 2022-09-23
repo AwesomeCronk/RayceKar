@@ -6,3 +6,9 @@ The engine is called RayceKar (pronounced like racecar). The best way to import 
 * `gl` - `initialize`, `paint`, `updateScene`, etc
 * `ui` - GLFW management and UI functions
 * `util` - various bits and bobs used within RayceKar
+
+# To do
+* Add more shapes to env.py
+* Flesh out UI a bit
+* Custom shape system
+* Start documenting things
