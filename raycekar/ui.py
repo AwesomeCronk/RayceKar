@@ -1,7 +1,7 @@
 import contextlib, logging, glfw, sys, struct
 from dataclasses import dataclass
 
-from raycekar import events, util
+from raycekar import events
 from raycekar.util import loggingHandler
 from raycekar.coord import *
 
@@ -16,7 +16,7 @@ class _flags:
 
 flags = _flags()
 
-viewportSize = (400, 400)
+viewportSize = vec2(400, 400)
 needGLVersion = (4, 4)
 window = None
 

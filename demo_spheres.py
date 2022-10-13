@@ -7,18 +7,19 @@ from raycekar.util import loggingHandler
 
 
 frameLimit = 120
+viewportSize = vec2(800, 800)
 
 
 ### Main section ###
 if __name__ == '__main__':
-    logger = logging.getLogger('main')
-    logger.setLevel(logging.DEBUG)
-    logger.addHandler(loggingHandler)
+    log = logging.getLogger('main')
+    log.setLevel(logging.DEBUG)
+    log.addHandler(loggingHandler)
 
     rk.ui.initialize()
 
-    with rk.ui.createWindow('Window title', (800, 800)):
-        rk.gl.initialize((800, 800))
+    with rk.ui.createWindow('Window title', viewportSize):
+        rk.gl.initialize(viewportSize)
 
         # Scene setup
         scene = rk.env.scene()
@@ -33,58 +34,47 @@ if __name__ == '__main__':
         scene.addObject(sphere2)
         scene.addObject(sphere3)
 
-        # UI setup
-        mainWidget = rk.ui.widget(vec2(50, 20), vec2(40, 40), vec4(1, 0.388, 0.035, 1))
+        for i in range(10):
+            scene.addObject(rk.env.sphere(vec3(0, i + 1, 0), 0.5))
 
         def closeWindow(action):
-            # logger.info('Window close event triggered (action: {})'.format(action))
+            # log.info('Window close event triggered (action: {})'.format(action))
             rk.ui.closeWindow()
 
-        # def moveBox(action):
-        #     mainWidget.move(rk.ui.mouse.pos)
-
         rk.ui.keys.setEvent(rk.ui.keys.ESCAPE, closeWindow)
-        # rk.ui.mouse.setEvent(rk.ui.mouse.LEFT, moveBox)
 
         # Main loop
         frame = -1
         frameTimes = []
+        renderTimes = []
         endTime = time.perf_counter()
 
         while not rk.ui.flags.shouldClose:
             frame += 1
             startTime = endTime
 
-            # if rk.ui.keys.pressed(rk.ui.keys.ESCAPE):
-            #    rk.ui.closeWindow()
-
-            if rk.ui.keys.pressed(rk.ui.keys.X):
-                mainWidget.move(rk.ui.mouse.pos)
-
-            if rk.ui.mouse.pressed(rk.ui.mouse.LEFT):
-                mainWidget.move(rk.ui.mouse.pos)
-
             sphere0.move(vec3(-3, 0, 2 * sin(rad(deg(frame)))))
             sphere1.move(vec3(-1, 0, 2 * sin(rad(deg(frame + 90)))))
             sphere2.move(vec3(1, 0, 2 * sin(rad(deg(frame + 180)))))
             sphere3.move(vec3(3, 0, 2 * sin(rad(deg(frame + 270)))))
 
-            # print(rk.ui.mouse.pos)
-            # mainWidget.move(rk.ui.mouse.pos)
-
             rk.gl.compile(scene)
+            renderStart = time.perf_counter()
             rk.gl.paintScene()
-            rk.gl.compile(mainWidget)
-            rk.gl.paintUI()
+            renderStop = time.perf_counter()
             rk.gl.blitBuffers()
             rk.ui.updateWindow()
 
             # FPS limiting
-            time.sleep(max(0, (1 / frameLimit) - (time.perf_counter() - startTime)))
+            # time.sleep(max(0, (1 / frameLimit) - (time.perf_counter() - startTime)))
             endTime = time.perf_counter()
 
             # FPS counting
-            # frameTimes.append(endTime - startTime)
-            # if len(frameTimes) == 100:
-            #     print('Average FPS: {}'.format(round(1 / (sum(frameTimes) / len(frameTimes)), 6)))
-            #     frameTimes = []
+            frameTimes.append(endTime - startTime)
+            renderTimes.append(renderStop - renderStart)
+            if len(frameTimes) == 200:
+                print('Average FPS: {}'.format(round(1 / (sum(frameTimes) / len(frameTimes)), 6)))
+                print('Average frame time: {}'.format(round(sum(frameTimes) / len(frameTimes), 6)))
+                print('Average render time: {}'.format(round(sum(renderTimes) / len(renderTimes), 6)))
+                frameTimes = []
+                renderTimes = []

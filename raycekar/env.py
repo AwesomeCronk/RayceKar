@@ -1,6 +1,7 @@
 import struct
 
 from raycekar.coord import *
+from raycekar.gl import contacts
 
 
 class scene():
@@ -30,21 +31,23 @@ class scene():
         return typeData, intData, floatData
 
 
-# Empty base class to make it easy to ensure only objects are in the scene
 class object():
-    pass
+    def __init__(self, pos: vec3, rot: quat):
+        self.pos = pos
+        self.rot = rot
+
+    def move(self, pos: vec3, relative=False):
+        if relative: self.pos += self.rot * pos
+        else: self.pos = pos
+
+    def rotate(self, rot: quat, relative=False):
+        self.rot = rot
 
 class camera(object):
     def __init__(self, pos: vec3, rot: quat, fov: float):
         self.pos = pos
         self.rot = rot
         self.fov = fov
-
-    def move(self, newPos: vec3):
-        self.pos = newPos
-
-    def rotate(self, newRot: quat):
-        self.rot = newRot
 
     def setFov(self, newFov: float):
         self.fov = newFov
@@ -62,9 +65,6 @@ class sphere(object):
     def __init__(self, pos: vec3, rad: float):
         self.pos = pos
         self.rad = rad
-        
-    def move(self, newPos: vec3):
-        self.pos = newPos
 
     def resize(self, rad: float):
         self.rad = rad
@@ -84,13 +84,7 @@ class box(object):
         self.rot = rot
         self.dim = dim
 
-    def move(self, newPos: vec3):
-        self.pos = newPos
-
-    def rotate(self, newRot):
-        self.rot = newRot
-
-    def resize(self, newDim):
+    def resize(self, newDim: vec3):
         self.dim = newDim
 
     def compileBufferData(self):
@@ -109,3 +103,8 @@ objectTypes = [
     sphere,
     box
 ]
+
+
+def getContact(pos: vec2):
+    from raycekar.gl import viewportSize
+    return contacts.scene[pos.x + (viewportSize.x * pos.y)]

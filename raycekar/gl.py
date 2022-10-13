@@ -1,18 +1,24 @@
-import logging, sys, pathlib
+import logging, sys, pathlib, struct
 from OpenGL import GL as gl
 from raycekar import util
+from raycekar.coord import *
 
-logger = logging.getLogger('rk.gl')
-logger.addHandler(util.loggingHandler)
-logger.setLevel(logging.DEBUG)
+log = logging.getLogger('rk.gl')
+log.addHandler(util.loggingHandler)
+log.setLevel(logging.DEBUG)
 
-viewportSize = (512, 512)
+viewportSize = vec2(400, 400)
+
+class _contacts:
+    scene = ()
+    ui = ()
+contacts = _contacts()
 
 def _glDebugMessageCallback(source, messageType, messageID, severity, length, message, user):
-    logger.error('Source: {}; Message type: {}; Message ID: {}; Severity: {}; Length: {}; Message: {}; User: {};'.format(source, messageType, messageID, severity, length, message, user))
+    log.error('Source: {}; Message type: {}; Message ID: {}; Severity: {}; Length: {}; Message: {}; User: {};'.format(source, messageType, messageID, severity, length, message, user))
 
 def _createRenderProgram(shaderSource):
-    logger.debug('Creating render program from "{}"'.format(shaderSource))
+    log.debug('Creating render program from "{}"'.format(shaderSource))
     # Render shader source
     with open(shaderSource, 'r') as sourceFile:
         renderShaderSource = sourceFile.read()
@@ -22,7 +28,7 @@ def _createRenderProgram(shaderSource):
     gl.glShaderSource(renderShader, renderShaderSource)
     gl.glCompileShader(renderShader)
     if not gl.glGetShaderiv(renderShader, gl.GL_COMPILE_STATUS):
-        logger.error('renderShader problem\n{}'.format(gl.glGetShaderInfoLog(renderShader).replace(b'\\n', b'\n').decode()))
+        log.error('renderShader problem\n{}'.format(gl.glGetShaderInfoLog(renderShader).replace(b'\\n', b'\n').decode()))
         sys.exit(1)
 
     # Render program
@@ -30,7 +36,7 @@ def _createRenderProgram(shaderSource):
     gl.glAttachShader(renderProgram, renderShader)
     gl.glLinkProgram(renderProgram)
     if not gl.glGetProgramiv(renderProgram, gl.GL_LINK_STATUS):
-        logger.error('renderProgram problem\n{}'.format(gl.glGetProgramInfoLog(renderProgram).replace(b'\\n', b'\n').decode()))
+        log.error('renderProgram problem\n{}'.format(gl.glGetProgramInfoLog(renderProgram).replace(b'\\n', b'\n').decode()))
         sys.exit(1)
 
     # Shader cleanup
@@ -39,7 +45,7 @@ def _createRenderProgram(shaderSource):
     return renderProgram
 
 def _createStorageBuffer(bindPoint):
-    logger.debug('Creating storage buffer at bind point {}'.format(bindPoint))
+    log.debug('Creating storage buffer at bind point {}'.format(bindPoint))
     storageBuffer = gl.glGenBuffers(1)
     gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, storageBuffer)
     gl.glBindBufferBase(gl.GL_SHADER_STORAGE_BUFFER, bindPoint, storageBuffer)
@@ -50,11 +56,12 @@ def initialize(size):
     global sceneRenderProgram, uiRenderProgram
     global framebuffer
     global typeStorageBuffer, intStorageBuffer, floatStorageBuffer
+    global contactStorageBuffer
     global viewportSize
     viewportSize = size
 
-    logger.info('Initializing OpenGL')
-    logger.info('Using OpenGL {}'.format(gl.glGetString(gl.GL_VERSION).decode()))
+    log.info('Initializing OpenGL')
+    log.info('Using OpenGL {}'.format(gl.glGetString(gl.GL_VERSION).decode()))
     gl.glDebugMessageCallback(gl.GLDEBUGPROC(_glDebugMessageCallback), None)
 
     gl.glViewport(0, 0, *viewportSize)
@@ -85,6 +92,12 @@ def initialize(size):
     intStorageBuffer = _createStorageBuffer(2)
     floatStorageBuffer = _createStorageBuffer(3)
 
+    # Shader storage buffer to hold contact ID output
+    contactStorageBuffer = _createStorageBuffer(4)
+    gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, contactStorageBuffer)
+    dataSize = viewportSize[0] * viewportSize[1] * 4
+    gl.glBufferData(gl.GL_SHADER_STORAGE_BUFFER, dataSize, b'\x00' * dataSize, gl.GL_DYNAMIC_READ)
+
 
 def compile(scene):
     # Compile scene/ui data
@@ -109,17 +122,18 @@ def paintScene():
     # Dispatch render program
     gl.glUseProgram(sceneRenderProgram)
     gl.glDispatchCompute(viewportSize[0] // 8, viewportSize[1] // 8, 1)
-    # gl.glDispatchCompute(*viewportSize, 1)
     gl.glMemoryBarrier(gl.GL_ALL_BARRIER_BITS)
-    status = gl.glGetError()
-    if status != gl.GL_NO_ERROR: logger.error('Code {} after dispatching sceneRenderProgram'.format(status)); sys.exit(1)
+
+    gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, contactStorageBuffer)
+    contacts.scene = struct.unpack('i' * viewportSize[0] * viewportSize[1], gl.glGetBufferSubData(gl.GL_SHADER_STORAGE_BUFFER, 0, viewportSize[0] * viewportSize[1] * 4))
 
 def paintUI():
     gl.glUseProgram(uiRenderProgram)
     gl.glDispatchCompute(viewportSize[0] // 8, viewportSize[1] // 8, 1)
     gl.glMemoryBarrier(gl.GL_ALL_BARRIER_BITS)
-    status = gl.glGetError()
-    if status != gl.GL_NO_ERROR: logger.error('Code {} after dispatching uiRenderProgram'.format(status)); sys.exit(1)
+
+    gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, contactStorageBuffer)
+    contacts.ui = struct.unpack('i' * viewportSize[0] * viewportSize[1], gl.glGetBufferSubData(gl.GL_SHADER_STORAGE_BUFFER, 0, viewportSize[0] * viewportSize[1] * 4))
 
 def blitBuffers():
     # Copy data to default framebuffer's backbuffer
@@ -128,5 +142,3 @@ def blitBuffers():
         0, 0, *viewportSize,
         gl.GL_COLOR_BUFFER_BIT, gl.GL_LINEAR
     )
-    status = gl.glGetError()
-    if status != gl.GL_NO_ERROR: logger.error('Code {} after blitting framebuffers'.format(status)); sys.exit(1)
