@@ -2,7 +2,7 @@
 // Compute shader `renderScene.glsl`
 
 
-layout(local_size_x = 8, local_size_y = 8) in;
+layout(local_size_x = @{THREAD_GROUP_SIZE_X}, local_size_y = @{THREAD_GROUP_SIZE_Y}) in;
 layout(rgba32f, binding = 0) uniform image2D screen;
 layout(std430, binding = 1) buffer typeStorageBuffer {int shapeTypes[];};
 layout(std430, binding = 2) buffer intStorageBuffer {int shapeInts[];};
