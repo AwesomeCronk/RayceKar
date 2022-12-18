@@ -8,6 +8,7 @@ from raycekar.util import loggingHandler
 
 frameLimit = 120
 viewportSize = vec2(800, 800)
+fpsCountInterval = 200
 
 
 ### Main section ###
@@ -72,9 +73,11 @@ if __name__ == '__main__':
             # FPS counting
             frameTimes.append(endTime - startTime)
             renderTimes.append(renderStop - renderStart)
-            if len(frameTimes) == 200:
-                print('Average FPS: {}'.format(round(1 / (sum(frameTimes) / len(frameTimes)), 6)))
-                print('Average frame time: {}'.format(round(sum(frameTimes) / len(frameTimes), 6)))
-                print('Average render time: {}'.format(round(sum(renderTimes) / len(renderTimes), 6)))
+            if len(frameTimes) == fpsCountInterval:
+                print('Stats for {} frames:'.format(fpsCountInterval))
+                print('FPS: {}'.format(round(fpsCountInterval / sum(frameTimes), 6)))
+                print('Frame time: {}'.format(round(sum(frameTimes) / fpsCountInterval, 6)))
+                print('  Render time: {}'.format(round(sum(renderTimes) / fpsCountInterval, 6)))
+                print('  CPU time: {}'.format(round((sum(frameTimes) - sum(renderTimes)) / fpsCountInterval, 6)))
                 frameTimes = []
                 renderTimes = []

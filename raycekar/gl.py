@@ -24,6 +24,8 @@ class _contacts:
     ui = ()
 contacts = _contacts()
 
+
+### Initialization ###
 def _glDebugMessageCallback(source, messageType, messageID, severity, length, message, user):
     log.error('Source: {}; Message type: {}; Message ID: {}; Severity: {}; Length: {}; Message: {}; User: {};'.format(source, messageType, messageID, severity, length, message, user))
 
@@ -66,12 +68,11 @@ def _createStorageBuffer(bindPoint):
     gl.glBindBufferBase(gl.GL_SHADER_STORAGE_BUFFER, bindPoint, storageBuffer)
     return storageBuffer
 
-
 def initialize(viewportSize: vec2, threadGroupSize=_threadGroupSize):
     global sceneRenderProgram, uiRenderProgram
     global framebuffer
     global typeStorageBuffer, intStorageBuffer, floatStorageBuffer
-    global contactStorageBuffer
+    global sceneContactStorageBuffer, uiContactStorageBuffer
     global _viewportSize, _threadGroupSize
     _viewportSize = viewportSize
     _threadGroupSize = threadGroupSize
@@ -119,13 +120,19 @@ def initialize(viewportSize: vec2, threadGroupSize=_threadGroupSize):
     intStorageBuffer = _createStorageBuffer(2)
     floatStorageBuffer = _createStorageBuffer(3)
 
-    # Shader storage buffer to hold contact ID output
-    contactStorageBuffer = _createStorageBuffer(4)
-    gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, contactStorageBuffer)
+    # Shader storage buffers to hold contact ID output
+    sceneContactStorageBuffer = _createStorageBuffer(4)
+    gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, sceneContactStorageBuffer)
+    dataSize = _viewportSize[0] * _viewportSize[1] * 4
+    gl.glBufferData(gl.GL_SHADER_STORAGE_BUFFER, dataSize, b'\x00' * dataSize, gl.GL_DYNAMIC_READ)
+    
+    uiContactStorageBuffer = _createStorageBuffer(5)
+    gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, uiContactStorageBuffer)
     dataSize = _viewportSize[0] * _viewportSize[1] * 4
     gl.glBufferData(gl.GL_SHADER_STORAGE_BUFFER, dataSize, b'\x00' * dataSize, gl.GL_DYNAMIC_READ)
 
 
+### Scene compilation ###
 def compile(scene):
     # Compile scene/ui data
     typeData, intData, floatData = scene.compileBufferData()
@@ -143,23 +150,30 @@ def compile(scene):
 
     gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, 0)
 
+
+### Rendering ###
 def paintScene():
     gl.glClear(gl.GL_COLOR_BUFFER_BIT)
 
     # Dispatch render program
+    gl.glMemoryBarrier(gl.GL_ALL_BARRIER_BITS)
     gl.glUseProgram(sceneRenderProgram)
     gl.glDispatchCompute(_viewportSize.x // _threadGroupSize.x, _viewportSize.y // _threadGroupSize.y, 1)
-    gl.glMemoryBarrier(gl.GL_ALL_BARRIER_BITS)
-
-    gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, contactStorageBuffer)
-    contacts.scene = struct.unpack('i' * _viewportSize[0] * _viewportSize[1], gl.glGetBufferSubData(gl.GL_SHADER_STORAGE_BUFFER, 0, _viewportSize[0] * _viewportSize[1] * 4))
-
+    
 def paintUI():
+    # Dispatch render program
+    gl.glMemoryBarrier(gl.GL_ALL_BARRIER_BITS)
     gl.glUseProgram(uiRenderProgram)
     gl.glDispatchCompute(_viewportSize.x // _threadGroupSize.x, _viewportSize.y // _threadGroupSize.y, 1)
-    gl.glMemoryBarrier(gl.GL_ALL_BARRIER_BITS)
 
-    gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, contactStorageBuffer)
+def getContactsScene():
+    # Read data from sceneContactStorageBuffer
+    gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, sceneContactStorageBuffer)
+    contacts.scene = struct.unpack('i' * _viewportSize[0] * _viewportSize[1], gl.glGetBufferSubData(gl.GL_SHADER_STORAGE_BUFFER, 0, _viewportSize[0] * _viewportSize[1] * 4))
+
+def getContactsUI():
+    # Read data from  uiContactStorageBuffer
+    gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, uiContactStorageBuffer)
     contacts.ui = struct.unpack('i' * _viewportSize[0] * _viewportSize[1], gl.glGetBufferSubData(gl.GL_SHADER_STORAGE_BUFFER, 0, _viewportSize[0] * _viewportSize[1] * 4))
 
 def blitBuffers():

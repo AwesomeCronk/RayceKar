@@ -109,8 +109,8 @@ vec4 cfBox(vec3 point)
     return vec4(0.2, 0.2, 1, 1);
 }
 
-
 _contact resolveRay(vec3 rayPos, vec3 rayDir)
+// vec4 resolveRay(vec3 rayPos, vec3 rayDir)
 {
     float dstScene;
     float dstTotal = 0;
@@ -198,6 +198,7 @@ _contact resolveRay(vec3 rayPos, vec3 rayDir)
     color = vec4(pow(dstTotal / dstMax, 2), pow(dstTotal / dstMax, 2), pow(dstTotal / dstMax, 2), 1);
 
     return _contact(color, contactID, rayPos, dstTotal);
+    // return color;
 }
 
 
@@ -239,6 +240,8 @@ void main()
 
         contact = resolveRay(rayPos, rayDir);
         color = contact.color;
+
+        // color = resolveRay(rayPos, rayDir);
     }
 
     // Final drawing of pixel and data export
