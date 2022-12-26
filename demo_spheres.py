@@ -8,6 +8,7 @@ from raycekar.util import loggingHandler
 
 frameLimit = 120
 viewportSize = vec2(800, 800)
+threadGroupSize = vec2(8, 4)
 fpsCountInterval = 200
 
 
@@ -20,7 +21,7 @@ if __name__ == '__main__':
     rk.ui.initialize()
 
     with rk.ui.createWindow('Window title', viewportSize):
-        rk.gl.initialize(viewportSize)
+        rk.gl.initialize(viewportSize, threadGroupSize)
 
         # Scene setup
         scene = rk.env.scene()
@@ -29,14 +30,14 @@ if __name__ == '__main__':
         sphere1 = rk.env.sphere(vec3(-1, 0, 0), 0.5)
         sphere2 = rk.env.sphere(vec3(1, 0, 0), 0.5)
         sphere3 = rk.env.sphere(vec3(3, 0, 0), 0.5)
-        scene.addObject(camera)
-        scene.addObject(sphere0)
-        scene.addObject(sphere1)
-        scene.addObject(sphere2)
-        scene.addObject(sphere3)
+        scene.addCamera(camera)
+        scene.addShape(sphere0)
+        scene.addShape(sphere1)
+        scene.addShape(sphere2)
+        scene.addShape(sphere3)
 
         for i in range(10):
-            scene.addObject(rk.env.sphere(vec3(0, i + 1, 0), 0.5))
+            scene.addShape(rk.env.sphere(vec3(0, i + 1, 0), 0.5))
 
         def closeWindow(action):
             # log.info('Window close event triggered (action: {})'.format(action))
@@ -59,7 +60,7 @@ if __name__ == '__main__':
             sphere2.move(vec3(1, 0, 2 * sin(rad(deg(frame + 180)))))
             sphere3.move(vec3(3, 0, 2 * sin(rad(deg(frame + 270)))))
 
-            rk.gl.compile(scene)
+            rk.gl.compileScene(scene)
             renderStart = time.perf_counter()
             rk.gl.paintScene()
             renderStop = time.perf_counter()

@@ -1,22 +1,35 @@
-#version 440 core
 // Compute shader `renderScene.glsl`
+// This shader is a component of the RayceKar project and is intended to work with its rendering system
+// https://github.com/AwesomeCronk/RayceKar
+
+#version 440 core
 
 
 layout(local_size_x = @{THREAD_GROUP_SIZE_X}, local_size_y = @{THREAD_GROUP_SIZE_Y}) in;
 layout(rgba32f, binding = 0) uniform image2D screen;
-layout(std430, binding = 1) buffer typeStorageBuffer {int shapeTypes[];};
-layout(std430, binding = 2) buffer intStorageBuffer {int shapeInts[];};
-layout(std430, binding = 3) buffer floatStorageBuffer {float shapeFloats[];};
-layout(std430, binding = 4) buffer contactsBuffer {int contacts[];};
+
+layout(std430, binding = 1) buffer shapeTypeStorageBuffer   {int shapeTypes[];};
+layout(std430, binding = 2) buffer shapeIntStorageBuffer    {int shapeInts[];};
+layout(std430, binding = 3) buffer shapeFloatStorageBuffer  {float shapeFloats[];};
+
+layout(std430, binding = 4) buffer lightTypStorageBuffer    {int lightTypes[];};
+layout(std430, binding = 5) buffer lightFloatStorageBuffer  { float lightFloats[];};
+
+layout(std430, binding = 6) buffer shapeContactsBuffer      {int contacts[];};
 
 
 #define pi 3.1415926535897932384626
+
 // Aliasing to make quaternions easier to figure out
 #define quat vec4
 #define n  x
 #define ni y
 #define nj z
 #define nk w
+
+// Shape IDs
+# define idSphere 1
+# define idBox 2
 
 struct _contact {
     vec4 color;
@@ -75,18 +88,18 @@ vec3 multiplyqv(quat q, vec3 v)
 
 
 //// SDFs ////
-float sdfSphere(vec3 rayPos, vec3 spherePos, float sphereRad)
+float sdfSphere(vec3 ray, vec3 pos, float radius)
 {
-    return length(spherePos - rayPos) - sphereRad;
+    return length(pos - ray) - radius;
 }
 
-float sdfBox(vec3 rayPos, vec3 boxPos, quat boxRot, vec3 boxDim)
+float sdfBox(vec3 ray, vec3 pos, quat rot, vec3 dimensions)
 {
-    boxRot = normalize(boxRot);             // Rotate by the inverse of boxRot to get rayPosRel
-    quat rayRot = quat(boxRot.n, -boxRot.ni, -boxRot.nj, -boxRot.nk);
-    vec3 rayPosRel = multiplyqv(rayRot, rayPos - boxPos);
-    vec3 diff = abs(rayPosRel) - (boxDim * 0.5);    // Subtract half the dimensions to get a vector to the nearest corner
-    // If a component of diff is <= 0, then rayPosRel is above the corresponding surface and not out
+    rot = normalize(rot);             // Rotate by the inverse of rot to get rayRel
+    quat rayRot = quat(rot.n, -rot.ni, -rot.nj, -rot.nk);
+    vec3 rayRel = multiplyqv(rayRot, ray - pos);
+    vec3 diff = abs(rayRel) - (dimensions * 0.5);    // Subtract half the dimensions to get a vector to the nearest corner
+    // If a component of diff is <= 0, then rayRel is above the corresponding surface and not out
     // at a corner, so we cut that bit out to make the length add up
     if (all(lessThan(diff, vec3(0, 0, 0)))) return max(max(diff.x, diff.y), diff.z);
     else return length(vec3(max(diff.x, 0), max(diff.y, 0), max(diff.z, 0)));
@@ -99,18 +112,17 @@ float sdfInfPlane(vec3 rayPos, vec3 planePos)
 
 
 //// CFs ////
-vec4 cfSphere(vec3 point, float sphereRad)
+vec4 cfSphere()
 {
     return vec4(1, 0.2, 0.2, 1);
 }
 
-vec4 cfBox(vec3 point)
+vec4 cfBox()
 {
     return vec4(0.2, 0.2, 1, 1);
 }
 
-_contact resolveRay(vec3 rayPos, vec3 rayDir)
-// vec4 resolveRay(vec3 rayPos, vec3 rayDir)
+_contact resolvePixel(vec3 rayPos, vec3 rayDir)
 {
     float dstScene;
     float dstTotal = 0;
@@ -131,36 +143,39 @@ _contact resolveRay(vec3 rayPos, vec3 rayDir)
         {
             switch (shapeTypes[id])
             {
-                // Sphere
-                case 1:
+                case idSphere:
                     float dstSphere = sdfSphere(
                         rayPos,
+                        // pos
                         vec3(
                             shapeFloats[floatPtr],
                             shapeFloats[floatPtr + 1],
                             shapeFloats[floatPtr + 2]
                         ),
+                        // radius
                         shapeFloats[floatPtr + 3]
                     );
                     floatPtr += 4;
                     dstScene = min(dstScene, dstSphere);
                     break;
 
-                // Box
-                case 2:
+                case idBox:
                     float dstBox = sdfBox(
                         rayPos,
+                        // pos
                         vec3(
                             shapeFloats[floatPtr],
                             shapeFloats[floatPtr + 1],
                             shapeFloats[floatPtr + 2]
                         ),
+                        // rot
                         quat(
                             shapeFloats[floatPtr + 4],
                             shapeFloats[floatPtr + 5],
                             shapeFloats[floatPtr + 6],
                             shapeFloats[floatPtr + 7]
                         ),
+                        // dimensions
                         vec3(
                             shapeFloats[floatPtr + 8],
                             shapeFloats[floatPtr + 9],
@@ -195,10 +210,15 @@ _contact resolveRay(vec3 rayPos, vec3 rayDir)
             break;
         }
     }
-    color = vec4(pow(dstTotal / dstMax, 2), pow(dstTotal / dstMax, 2), pow(dstTotal / dstMax, 2), 1);
+
+    switch (shapeTypes[contactID])
+    {
+        case idSphere: color = cfSphere();
+        case idBox: color = cfBox();
+    }
+    
 
     return _contact(color, contactID, rayPos, dstTotal);
-    // return color;
 }
 
 
@@ -238,10 +258,9 @@ void main()
         rayDir = multiplyqv(cameraRot, rayDir);     // Rotate the ray by cameraRot
 
 
-        contact = resolveRay(rayPos, rayDir);
+        contact = resolvePixel(rayPos, rayDir);
         color = contact.color;
 
-        // color = resolveRay(rayPos, rayDir);
     }
 
     // Final drawing of pixel and data export

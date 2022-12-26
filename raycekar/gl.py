@@ -30,7 +30,7 @@ def _glDebugMessageCallback(source, messageType, messageID, severity, length, me
     log.error('Source: {}; Message type: {}; Message ID: {}; Severity: {}; Length: {}; Message: {}; User: {};'.format(source, messageType, messageID, severity, length, message, user))
 
 def _createRenderProgram(shaderSource, replacements):
-    log.debug('Creating render program from "{}"'.format(shaderSource))
+    log.debug('Creating render program {}'.format(shaderSource))
     # Render shader source
     with open(shaderSource, 'r') as sourceFile:
         renderShaderSource = sourceFile.read()
@@ -62,16 +62,17 @@ def _createRenderProgram(shaderSource, replacements):
     return renderProgram
 
 def _createStorageBuffer(bindPoint):
-    log.debug('Creating storage buffer at bind point {}'.format(bindPoint))
+    log.debug('Creating storage buffer {}'.format(bindPoint))
     storageBuffer = gl.glGenBuffers(1)
     gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, storageBuffer)
     gl.glBindBufferBase(gl.GL_SHADER_STORAGE_BUFFER, bindPoint, storageBuffer)
     return storageBuffer
 
-def initialize(viewportSize: vec2, threadGroupSize=_threadGroupSize):
+def initialize(viewportSize: vec2, threadGroupSize: vec2):
     global sceneRenderProgram, uiRenderProgram
     global framebuffer
-    global typeStorageBuffer, intStorageBuffer, floatStorageBuffer
+    global shapeTypeStorageBuffer, shapeIntStorageBuffer, shapeFloatStorageBuffer
+    global lightTypeStorageBuffer, lightFloatStorageBuffer
     global sceneContactStorageBuffer, uiContactStorageBuffer
     global _viewportSize, _threadGroupSize
     _viewportSize = viewportSize
@@ -115,10 +116,13 @@ def initialize(viewportSize: vec2, threadGroupSize=_threadGroupSize):
     gl.glBindFramebuffer(gl.GL_READ_FRAMEBUFFER, framebuffer)
     gl.glBindFramebuffer(gl.GL_DRAW_FRAMEBUFFER, 0)
 
-    # Shader storage buffers for scene objects
-    typeStorageBuffer = _createStorageBuffer(1)
-    intStorageBuffer = _createStorageBuffer(2)
-    floatStorageBuffer = _createStorageBuffer(3)
+    # Shader storage buffers for scene shapes
+    shapeTypeStorageBuffer = _createStorageBuffer(1)
+    shapeIntStorageBuffer = _createStorageBuffer(2)
+    shapeFloatStorageBuffer = _createStorageBuffer(3)
+    
+    lightTypeStorageBuffer = _createStorageBuffer(4)
+    lightFloatStorageBuffer = _createStorageBuffer(5)
 
     # Shader storage buffers to hold contact ID output
     sceneContactStorageBuffer = _createStorageBuffer(4)
@@ -133,20 +137,28 @@ def initialize(viewportSize: vec2, threadGroupSize=_threadGroupSize):
 
 
 ### Scene compilation ###
-def compile(scene):
+def compileScene(scene):
     # Compile scene/ui data
-    typeData, intData, floatData = scene.compileBufferData()
-    if not typeData is None:
-        gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, typeStorageBuffer)
-        gl.glBufferData(gl.GL_SHADER_STORAGE_BUFFER, len(typeData), typeData, gl.GL_DYNAMIC_DRAW)
+    shapeData, lightData = scene.compileBufferData()
+    shapeTypeData, shapeIntData, shapeFloatData = shapeData
+    lightTypeData, lightFloatData = lightData
 
-    if not intData is None:
-        gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, intStorageBuffer)
-        gl.glBufferData(gl.GL_SHADER_STORAGE_BUFFER, len(intData), intData, gl.GL_DYNAMIC_DRAW)
+    if shapeTypeData != b'':
+        gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, shapeTypeStorageBuffer)
+        gl.glBufferData(gl.GL_SHADER_STORAGE_BUFFER, len(shapeTypeData), shapeTypeData, gl.GL_DYNAMIC_DRAW)
+    if shapeIntData != b'':
+        gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, shapeIntStorageBuffer)
+        gl.glBufferData(gl.GL_SHADER_STORAGE_BUFFER, len(shapeIntData), shapeIntData, gl.GL_DYNAMIC_DRAW)
+    if shapeFloatData != b'':
+        gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, shapeFloatStorageBuffer)
+        gl.glBufferData(gl.GL_SHADER_STORAGE_BUFFER, len(shapeFloatData), shapeFloatData, gl.GL_DYNAMIC_DRAW)
 
-    if not floatData is None:
-        gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, floatStorageBuffer)
-        gl.glBufferData(gl.GL_SHADER_STORAGE_BUFFER, len(floatData), floatData, gl.GL_DYNAMIC_DRAW)
+    if lightTypeData != b'':
+        gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, lightTypeStorageBuffer)
+        gl.glBufferData(gl.GL_SHADER_STORAGE_BUFFER, len(lightTypeData), lightTypeData, gl.GL_DYNAMIC_DRAW)
+    if lightFloatData != b'':
+        gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, lightFloatStorageBuffer)
+        gl.glBufferData(gl.GL_SHADER_STORAGE_BUFFER, len(lightFloatData), lightFloatData, gl.GL_DYNAMIC_DRAW)
 
     gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, 0)
 
